@@ -6,6 +6,7 @@ import json
 import yaml
 import shutil
 import uvicorn
+from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -22,13 +23,25 @@ from utils.kv_extraction import extract_key_value_pairs
 # These are your local modules
 import models, schemas, security, database
 
-# Create DB tables upon startup
+# Create local DB tables upon startup
 models.Base.metadata.create_all(bind=database.engine)
 
-image_client = ChatWithImage(model_id="meta-llama/llama-4-maverick-17b-128e-instruct-fp8", max_tokens=2000, top_p=0.1, temperature=0)
-
 app = FastAPI(title="Loan Application API")
-cos = COSClient()
+
+
+@lru_cache(maxsize=1)
+def get_image_client():
+    return ChatWithImage(
+        model_id="meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+        max_tokens=2000,
+        top_p=0.1,
+        temperature=0,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_cos_client():
+    return COSClient()
 
 # --- CORS Configuration ---
 app.add_middleware(
@@ -49,7 +62,11 @@ def save_upload_file(upload_file: UploadFile, destination: str):
     try:
         with open(destination, "wb") as buffer:
             shutil.copyfileobj(upload_file.file, buffer)
-        cos.upload_local_file_to_cos(local_filepath=destination, bucket_name=COS_BUCKET_NAME, output_filepath=destination)
+        get_cos_client().upload_local_file_to_cos(
+            local_filepath=destination,
+            bucket_name=COS_BUCKET_NAME,
+            output_filepath=destination,
+        )
     finally:
         upload_file.file.close()
 
@@ -173,7 +190,11 @@ async def submit_application_form(
     # --- File Saving Logic ---
     app_upload_dir = os.path.join(UPLOAD_DIRECTORY, app_id_str)
     application_file_path = os.path.join(app_upload_dir, "application_data.json")
-    cos.upload_json_to_cos(json_content=form_data, bucket_name=COS_BUCKET_NAME, output_filepath=application_file_path)
+    get_cos_client().upload_json_to_cos(
+        json_content=form_data,
+        bucket_name=COS_BUCKET_NAME,
+        output_filepath=application_file_path,
+    )
 
     os.makedirs(app_upload_dir, exist_ok=True)
     uploaded_files = [os.path.join(app_upload_dir, idProof.filename),
@@ -230,13 +251,20 @@ async def submit_pdf_form(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving files: {e}")
     
-    form_data = extract_key_value_pairs(image_client, filename=os.path.join(app_upload_dir, applicationPdf.filename))
+    form_data = extract_key_value_pairs(
+        get_image_client(),
+        filename=os.path.join(app_upload_dir, applicationPdf.filename),
+    )
     applicant_name = form_data.get("full_name", current_user.username)
     loan_type = form_data.get("loan_type", "PDF Application")
     loan_amount = form_data.get("loan_amount", 0)
 
     application_file_path = os.path.join(app_upload_dir, "application_data.json")
-    cos.upload_json_to_cos(json_content=form_data, bucket_name=COS_BUCKET_NAME, output_filepath=application_file_path)
+    get_cos_client().upload_json_to_cos(
+        json_content=form_data,
+        bucket_name=COS_BUCKET_NAME,
+        output_filepath=application_file_path,
+    )
 
     new_application = models.Application(
         app_id_str=app_id_str,
@@ -290,4 +318,4 @@ async def download_file():
     
 # Standard entry point to run the app
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

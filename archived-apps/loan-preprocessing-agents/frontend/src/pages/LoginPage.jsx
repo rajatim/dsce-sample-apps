@@ -1,8 +1,18 @@
 // src/pages/LoginPage.js
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { Form, TextInput, PasswordInput, Button, InlineNotification } from '@carbon/react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import {
+    Form,
+    TextInput,
+    PasswordInput,
+    Button,
+    InlineLoading,
+    InlineNotification,
+} from '@carbon/react';
+
+const DEMO_USERNAME = 'tom_miller';
+const DEMO_PASSWORD = 'Pass1234';
 
 export const LoginPage = () => {
     const [username, setUsername] = useState('');
@@ -10,15 +20,18 @@ export const LoginPage = () => {
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const demoMode = searchParams.get('demo') === '1';
+    const [isAutoLogin, setIsAutoLogin] = useState(demoMode);
+    const demoLoginStarted = useRef(false);
+    const apiUrl = import.meta.env.VITE_API_URL;
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const authenticate = useCallback(async (loginUsername, loginPassword, automatic = false) => {
         setError('');
-        const apiUrl = import.meta.env.VITE_API_URL;
 
         const formData = new URLSearchParams();
-        formData.append('username', username);
-        formData.append('password', password);
+        formData.append('username', loginUsername);
+        formData.append('password', loginPassword);
 
         try {
             const response = await fetch(`${apiUrl}/token`, {
@@ -36,11 +49,34 @@ export const LoginPage = () => {
             login(data.access_token);
             navigate('/apply');
         } catch (err) {
-            setError(err.message);
+            setError(automatic ? `Automatic demo login failed: ${err.message}` : err.message);
+            setIsAutoLogin(false);
         }
+    }, [apiUrl, login, navigate]);
+
+    useEffect(() => {
+        if (!demoMode || demoLoginStarted.current) return;
+
+        demoLoginStarted.current = true;
+        authenticate(DEMO_USERNAME, DEMO_PASSWORD, true);
+    }, [authenticate, demoMode]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        await authenticate(username, password);
     };
-    const apiUrl = import.meta.env.VITE_API_URL;
+
     const downloadUrl = `${apiUrl}/download_sample_documents`;
+
+    if (isAutoLogin && !error) {
+        return (
+            <div style={{ maxWidth: '600px', margin: '4rem auto' }}>
+                <h2>Preparing the loan demo</h2>
+                <InlineLoading description="Entering demo..." />
+            </div>
+        );
+    }
+
     // ... return a form JSX similar to your other components
     return (
         <div style={{ maxWidth: '600px', margin: '4rem auto' }}>
