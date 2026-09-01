@@ -4,9 +4,9 @@ This is the frontend for the Financial LoanHub application, a modern web platfor
 
 ## Features
 
--   **User Authentication:** Secure user registration and login using JWT (JSON Web Tokens).
--   **Persistent Sessions:** Users remain logged in across page refreshes using `localStorage`.
--   **Protected Routes:** Core application features are only accessible to authenticated users.
+-   **Automatic Demo Access:** The POC silently creates its demo JWT session without exposing login or registration screens.
+-   **Persistent Demo Sessions:** Demo access remains available across page refreshes using `localStorage`.
+-   **Protected APIs:** FastAPI endpoints remain protected by JWT even though authentication is invisible in the demo UI.
 -   **Multi-Step Loan Application:** A user-friendly, multi-step form for submitting new loan applications with file uploads.
 -   **PDF Application Upload:** An alternative application method allowing users to upload a pre-filled PDF.
 -   **My Applications Dashboard:** A data table view for users to see the status and details of their submitted applications.

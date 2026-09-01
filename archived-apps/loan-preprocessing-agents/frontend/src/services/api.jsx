@@ -13,11 +13,9 @@ export const authFetch = async (url, options = {}) => {
     const response = await fetch(url, { ...options, headers });
     
     if (response.status === 401) {
-        // Token is invalid or expired, log the user out
+        // Let AuthProvider silently establish a fresh demo session.
         localStorage.removeItem('token');
         window.dispatchEvent(new Event('storage')); // Notify other tabs/components
-        // Optionally redirect to login page
-        window.location.href = '/login';
     }
 
     return response;

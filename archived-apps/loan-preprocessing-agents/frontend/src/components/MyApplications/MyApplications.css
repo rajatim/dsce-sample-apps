@@ -38,3 +38,9 @@ ul ul {
 .clickable-row:hover {
     background-color: #e8f4ff; /* A light blue hover effect */
 }
+
+.validation-summary {
+  color: #0f62fe;
+  text-decoration: underline;
+  text-underline-offset: 0.125rem;
+}

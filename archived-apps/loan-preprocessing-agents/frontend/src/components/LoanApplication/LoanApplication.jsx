@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Button,
   TextInput,
@@ -27,12 +27,79 @@ import { authFetch } from '../../services/api';
 // Import the new CSS file
 import './LoanApplication.css';
 
+const DEMO_PRESETS = {
+  pass: {
+    firstName: 'Tom',
+    lastName: 'Miller',
+    email: 'tom.miller@example.com',
+    phone: '555-0100',
+    dateOfBirth: '1980-01-21',
+    ssn: '987-65-4321',
+    passportNumber: 'AB1234567',
+    address: '2570 24TH STREET, ANYTOWN, CA 95818',
+    maritalStatus: 'married',
+    employmentStatus: 'employed',
+    employer: 'Acme Corporation',
+    jobTitle: 'Operations Manager',
+    monthlyIncome: 8500,
+    employmentDuration: '5-10',
+    loanType: 'Home Renovation',
+    loanAmount: 50000,
+    loanPurpose: 'Home renovation',
+    downPayment: 10000,
+    monthlyExpenses: 3200,
+    creditScore: 'good',
+    bankingRelationship: true,
+    hasOtherLoans: false,
+    agreeToTerms: true,
+    agreeToCredit: true,
+  },
+  reject: {
+    firstName: 'Jordan',
+    lastName: 'Example',
+    email: 'jordan.example@example.com',
+    phone: '555-0199',
+    dateOfBirth: '2015-01-21',
+    ssn: '111-22-3333',
+    passportNumber: 'MISMATCH-001',
+    address: '999 DIFFERENT STREET, ANYTOWN, CA 95818',
+    maritalStatus: 'single',
+    employmentStatus: 'employed',
+    employer: 'Example Company',
+    jobTitle: 'Analyst',
+    monthlyIncome: 4200,
+    employmentDuration: '1-2',
+    loanType: 'Personal',
+    loanAmount: 25000,
+    loanPurpose: 'POC rejection scenario',
+    downPayment: 0,
+    monthlyExpenses: 3900,
+    creditScore: 'poor',
+    bankingRelationship: false,
+    hasOtherLoans: true,
+    agreeToTerms: true,
+    agreeToCredit: true,
+  },
+};
+
+const DEMO_FILES = {
+  applicationPdf: ['Loan-Application-Form.pdf', 'application/pdf'],
+  idProof: ['ID-Doc.png', 'image/png'],
+  incomeProof: ['Income-Doc.png', 'image/png'],
+  addressProof: ['Address-Doc.png', 'image/png'],
+  ssn: ['SSN.png', 'image/png'],
+};
+
 const LoanApplication = () => {
+  const demoRequestIdRef = useRef(0);
   const [applicationMode, setApplicationMode] = useState(null); // 'form' or 'pdf'
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedAppId, setSubmittedAppId] = useState(null);
+  const [demoScenario, setDemoScenario] = useState(null);
+  const [loadingDemoScenario, setLoadingDemoScenario] = useState(null);
+  const [demoPresetError, setDemoPresetError] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState({
     applicationPdf: null,
     idProof: null,
@@ -95,6 +162,7 @@ const LoanApplication = () => {
   const steps = applicationMode === 'form' ? formSteps : pdfSteps;
 
   useEffect(() => {
+    const prefillRequestId = demoRequestIdRef.current;
     const fetchUserData = async () => {
       const apiUrl = import.meta.env.VITE_API_URL;
       try {
@@ -103,6 +171,9 @@ const LoanApplication = () => {
           throw new Error("Could not fetch user data.");
         }
         const userData = await response.json();
+        if (demoRequestIdRef.current !== prefillRequestId) {
+          return;
+        }
         
         // Pre-fill the form data with the fetched user details
         setFormData(prevData => ({
@@ -135,6 +206,56 @@ const LoanApplication = () => {
           ...prev,
           [fileType]: file
         }));
+      }
+    }
+  };
+
+  const handleLoadDemoPreset = async (scenario) => {
+    const requestId = ++demoRequestIdRef.current;
+    const selectedMode = applicationMode;
+    setLoadingDemoScenario(scenario);
+    setDemoPresetError(null);
+    const apiUrl = import.meta.env.VITE_API_URL;
+    const fileKeys = selectedMode === 'pdf'
+      ? ['applicationPdf', 'idProof', 'incomeProof', 'addressProof', 'ssn']
+      : ['idProof', 'incomeProof', 'addressProof', 'ssn'];
+
+    try {
+      const fixtureEntries = await Promise.all(fileKeys.map(async (fileKey) => {
+        const response = await authFetch(`${apiUrl}/demo_fixtures/${scenario}/${fileKey}`);
+        if (!response.ok) {
+          throw new Error(`Could not load ${fileKey}.`);
+        }
+        const blob = await response.blob();
+        const [baseName, mediaType] = DEMO_FILES[fileKey];
+        return [
+          fileKey,
+          new File([blob], `demo-${scenario}-${baseName}`, { type: mediaType }),
+        ];
+      }));
+      const fixtures = Object.fromEntries(fixtureEntries);
+      if (demoRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      setFormData(prev => ({ ...prev, ...DEMO_PRESETS[scenario] }));
+      setUploadedFiles({
+        applicationPdf: fixtures.applicationPdf || null,
+        idProof: fixtures.idProof,
+        incomeProof: fixtures.incomeProof,
+        addressProof: fixtures.addressProof,
+        additionalDocs: [fixtures.ssn],
+      });
+      setDemoScenario(scenario);
+      setErrors({});
+      setCurrentStep(selectedMode === 'form' ? formSteps.length - 1 : pdfSteps.length - 1);
+    } catch (error) {
+      if (demoRequestIdRef.current === requestId) {
+        setDemoPresetError(error.message);
+      }
+    } finally {
+      if (demoRequestIdRef.current === requestId) {
+        setLoadingDemoScenario(null);
       }
     }
   };
@@ -252,6 +373,9 @@ const LoanApplication = () => {
     const apiUrl = import.meta.env.VITE_API_URL;
 
     try {
+        if (demoScenario) {
+            data.append('demoScenario', demoScenario);
+        }
         // 2. Build the FormData object based on the application mode
         if (applicationMode === 'form') {
             endpoint = `${apiUrl}/submit_form`;
@@ -665,9 +789,13 @@ const LoanApplication = () => {
   };
 
   const resetApplication = () => {
+    demoRequestIdRef.current += 1;
     setApplicationMode(null);
     setCurrentStep(0);
     setErrors({});
+    setDemoScenario(null);
+    setLoadingDemoScenario(null);
+    setDemoPresetError(null);
     setUploadedFiles({ applicationPdf: null, idProof: null, incomeProof: null, addressProof: null, additionalDocs: [] });
   };
 
@@ -692,6 +820,48 @@ const LoanApplication = () => {
                 </Button>
               </div>
             </div>
+
+            <section className="demo-preset-panel" aria-labelledby="demo-preset-title">
+              <div className="demo-preset-copy">
+                <p className="demo-preset-eyebrow">POC Quick Test</p>
+                <Heading id="demo-preset-title">Load a complete test application</Heading>
+                <p>Choose an expected outcome. We will fill the fields, attach sample documents, and take you to review.</p>
+              </div>
+              <div className="demo-preset-actions">
+                <Button
+                  kind="tertiary"
+                  size="sm"
+                  disabled={Boolean(loadingDemoScenario)}
+                  onClick={() => handleLoadDemoPreset('pass')}
+                >
+                  {loadingDemoScenario === 'pass' ? 'Loading Pass example…' : 'Load Pass example'}
+                </Button>
+                <Button
+                  kind="danger--tertiary"
+                  size="sm"
+                  disabled={Boolean(loadingDemoScenario)}
+                  onClick={() => handleLoadDemoPreset('reject')}
+                >
+                  {loadingDemoScenario === 'reject' ? 'Loading Reject example…' : 'Load Reject example'}
+                </Button>
+              </div>
+              {demoScenario && (
+                <InlineNotification
+                  kind={demoScenario === 'pass' ? 'success' : 'warning'}
+                  title={`${demoScenario === 'pass' ? 'Pass' : 'Reject'} POC example loaded`}
+                  subtitle="Review the prepared data, then submit when ready."
+                  hideCloseButton
+                />
+              )}
+              {demoPresetError && (
+                <InlineNotification
+                  kind="error"
+                  title="Could not load the POC example"
+                  subtitle={demoPresetError}
+                  hideCloseButton
+                />
+              )}
+            </section>
             
             <ProgressIndicator currentIndex={currentStep}>
               {steps.map((step, index) => (

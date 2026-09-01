@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
-import Markdown from 'react-markdown'
+import React, { useCallback, useState, useEffect, useContext, useRef } from 'react';
 import {
   DataTable,
   Table,
@@ -15,7 +14,7 @@ import {
 } from '@carbon/react';
 import './MyApplications.css';
 import { authFetch } from '../../services/api';
-import { PanelContext } from '../../App';
+import PanelContext from '../../contexts/PanelContext';
 import LogViewer from '../LogViewer/LogViewer';
 
 // Define the headers for our table
@@ -25,21 +24,41 @@ const headers = [
   { key: 'loan_type', header: 'Loan Type' },
   { key: 'amount', header: 'Amount' },
   { key: 'status', header: 'Status' },
-  { key: 'validation_comments', header: 'Validation Comments' },
+  { key: 'validation_comments', header: 'Details' },
   { key: 'submitted_date', header: 'Submitted Date' },
 ];
 
+const ACTIVE_STATUSES = new Set(['pending', 'processing', 'retrying']);
+
+const normalizeStatus = (status) => status?.trim().toLowerCase() || '';
+
+const hasActiveApplications = (applications) =>
+  applications.some((application) => ACTIVE_STATUSES.has(normalizeStatus(application.status)));
+
 // A helper function to render status tags with colors
 const renderStatusTag = (status) => {
-  const displayStatus = status
-    ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
-    : '';
-  switch (status?.toLowerCase()) {
+  const normalizedStatus = normalizeStatus(status);
+  const displayStatus = {
+    approved: 'Approved',
+    passed: 'Passed',
+    pending: 'Pending',
+    processing: 'Processing',
+    retrying: 'Retrying',
+    rejected: 'Rejected',
+    'processing failed': 'Processing Failed',
+  }[normalizedStatus] || status?.trim() || '';
+
+  switch (normalizedStatus) {
     case 'approved':
+    case 'passed':
       return <Tag type="green">{displayStatus}</Tag>;
     case 'pending':
+    case 'processing':
       return <Tag type="blue">{displayStatus}</Tag>;
+    case 'retrying':
+      return <Tag type="purple">{displayStatus}</Tag>;
     case 'rejected':
+    case 'processing failed':
       return <Tag type="red">{displayStatus}</Tag>;
     default:
       return <Tag type="gray">{displayStatus}</Tag>;
@@ -47,43 +66,92 @@ const renderStatusTag = (status) => {
 };
 
 const MyApplications = () => {
+  const fetchInFlightRef = useRef(null);
   const [applications, setApplications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const { setIsPanelOpen, setPanelContent } = useContext(PanelContext);
 
+  const handleApplicationChange = useCallback((updatedApplication) => {
+    setApplications((currentApplications) => currentApplications.map((application) => (
+      application.app_id_str === updatedApplication.app_id_str
+        ? { ...updatedApplication, id: updatedApplication.app_id_str }
+        : application
+    )));
+  }, []);
+
+  const fetchApplications = useCallback(() => {
+    if (fetchInFlightRef.current) {
+      return fetchInFlightRef.current;
+    }
+    const request = (async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL;
+        const response = await authFetch(`${apiUrl}/list_applications`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch applications.');
+        }
+        const data = await response.json();
+        setApplications(data.map(app => ({
+          ...app,
+          id: app.app_id_str,
+        })));
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    fetchInFlightRef.current = request;
+    request.finally(() => {
+      if (fetchInFlightRef.current === request) {
+        fetchInFlightRef.current = null;
+      }
+    });
+    return request;
+  }, []);
+
   const handleRowClick = (rowId) => {
       const application = applications.find(app => app.app_id_str === rowId);
-      console.log(rowId);
-      console.log(application);
       if (application) {
-          setPanelContent(<LogViewer appId={application.app_id_str} onClose={() => setIsPanelOpen(false)} />);
+          setPanelContent(
+            <LogViewer
+              application={application}
+              onApplicationChange={handleApplicationChange}
+            />
+          );
           setIsPanelOpen(true);
       }
   };
 
   useEffect(() => {
-    const fetchApplications = async () => {
-        try {
-            const apiUrl = import.meta.env.VITE_API_URL;
-            const response = await authFetch(`${apiUrl}/list_applications`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch applications.');
-            }
-            const data = await response.json();
-            setApplications(data.map(app => ({
-  ...app,
-  id: app.app_id_str,
-})));
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
+    fetchApplications();
+  }, [fetchApplications]);
+
+  useEffect(() => {
+    if (!hasActiveApplications(applications)) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let pollingTimer;
+
+    const scheduleNextPoll = () => {
+      pollingTimer = window.setTimeout(async () => {
+        await fetchApplications();
+        if (!cancelled) {
+          scheduleNextPoll();
         }
+      }, 5000);
     };
 
-    fetchApplications();
-  }, []);
+    scheduleNextPoll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(pollingTimer);
+    };
+  }, [applications, fetchApplications]);
 
   if (isLoading) {
     return (
@@ -134,15 +202,20 @@ const MyApplications = () => {
                     return (
                     <TableRow key={key} {...rest}
                     className="clickable-row"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleRowClick(row.id);
+                      }
+                    }}
                     onClick={() => handleRowClick(row.id)}>
                       {row.cells.map((cell) => (
                       <TableCell key={cell.id}>
                         {cell.info.header === 'status'
                         ? renderStatusTag(cell.value)
                         : cell.info.header === 'validation_comments'
-                          ? (
-                            <Markdown>{cell.value|| ''}</Markdown>
-                          )
+                          ? <span className="validation-summary">View processing details</span>
                           : cell.info.header === 'app_id_str'
                             ?<span style={{color: 'blue', textDecoration: 'underline'}}>{cell.value}</span>
                             : cell.value}

@@ -21,34 +21,57 @@
 .sidepanel {
   position: fixed;
   top: 0;
-  right: -400px; /* hidden by default */
-  /* width: 400px; */
-  max-width: 50vw;
+  right: 0;
+  width: min(48rem, 100vw);
   height: 100vh;
   background: #fff;
-  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
-  transition: right 0.3s ease;
+  box-shadow: -0.25rem 0 1.5rem rgba(0, 0, 0, 0.18);
+  transform: translateX(100%);
+  transition: transform 0.24s ease;
   z-index: 1001;
   display: flex;
   flex-direction: column;
 }
 
 .sidepanel.open {
-  right: 0; /* slide in */
+  transform: translateX(0);
 }
 
 /* Close button */
 .sidepanel-close {
-  background: none;
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  padding: 0;
+  background: #ffffff;
   border: none;
-  font-size: 1.5rem;
-  padding: 1rem;
+  color: #161616;
+  font-size: 1.25rem;
   cursor: pointer;
-  align-self: flex-end;
+}
+
+.sidepanel-close:hover {
+  background: #e8e8e8;
+}
+
+.sidepanel-close:focus-visible {
+  outline: 2px solid #0f62fe;
+  outline-offset: -2px;
 }
 
 .sidepanel-content {
-  padding: 1rem;
   overflow-y: auto;
   flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidepanel-overlay,
+  .sidepanel {
+    transition: none;
+  }
 }

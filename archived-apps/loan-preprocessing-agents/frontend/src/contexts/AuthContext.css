@@ -1,0 +1,70 @@
+.demo-access-state {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem;
+  background: #f4f4f4;
+  color: #161616;
+}
+
+.demo-access-card {
+  width: min(30rem, 100%);
+  padding: 2rem;
+  border-top: 0.25rem solid #0f62fe;
+  background: #ffffff;
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.08);
+}
+
+.demo-access-card h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 400;
+}
+
+.demo-access-card p {
+  margin: 0;
+  color: #525252;
+  line-height: 1.5;
+}
+
+.demo-access-card button {
+  min-height: 3rem;
+  margin-top: 1.5rem;
+  padding: 0 1rem;
+  border: 0;
+  background: #0f62fe;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.demo-access-card button:hover {
+  background: #0353e9;
+}
+
+.demo-access-progress {
+  width: 100%;
+  height: 0.25rem;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  background: #e0e0e0;
+}
+
+.demo-access-progress::after {
+  display: block;
+  width: 45%;
+  height: 100%;
+  background: #0f62fe;
+  animation: demo-access-loading 1.1s ease-in-out infinite alternate;
+  content: '';
+}
+
+@keyframes demo-access-loading {
+  from { transform: translateX(-10%); }
+  to { transform: translateX(135%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-access-progress::after {
+    animation: none;
+  }
+}

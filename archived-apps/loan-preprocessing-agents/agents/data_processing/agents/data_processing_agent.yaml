@@ -26,7 +26,7 @@ instructions: |
   ### Output Requirements
   * The final output should be in a single json summarizing all documents.
 
-llm: watsonx/mistralai/mistral-large
+llm: watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8
 style: default
 collaborators: []
 tools:

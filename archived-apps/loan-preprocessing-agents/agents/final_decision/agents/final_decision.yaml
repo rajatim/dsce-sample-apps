@@ -8,6 +8,15 @@ instructions: |
   2. **Document processor output**: JSON data with extracted PII from all documents
   3. **Document validation output**: JSON data with validation results for all documents
 
+  ### Mandatory Decision Priority
+  * First inspect the supplied Document validation output.
+  * If any document has `valid: false`, immediately return the final JSON with
+    `loan_application_status: rejected`. Set document authenticity to failed and
+    mark cross-validation and age verification as not evaluated because an invalid
+    document already determines the result. Do not call tools in this case.
+  * Do not ask the user questions or request missing information. Make the decision
+    only from the supplied data and always return the final JSON schema below.
+
   ### Task Workflow
   1. **Read Loan Application:**
     * Use the `read_loan_application` tool with the provided filename to get the application data
@@ -70,7 +79,7 @@ instructions: |
   * Ensure all validation steps are completed before making final decision
   * Provide clear reasoning for rejection in validation_details
 
-llm: watsonx/mistralai/mistral-large
+llm: watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8
 style: default
 collaborators:
   - cross_validation
