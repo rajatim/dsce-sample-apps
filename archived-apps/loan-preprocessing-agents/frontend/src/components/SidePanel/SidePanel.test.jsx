@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import SidePanel from './SidePanel';
+
+const sidePanelStyles = readFileSync(resolve('src/components/SidePanel/SidePanel.css'), 'utf8');
 
 const SidePanelHarness = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,5 +40,32 @@ describe('SidePanel keyboard focus', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(trigger).toHaveFocus();
+  });
+});
+
+describe('SidePanel stacking', () => {
+  afterEach(() => {
+    document.querySelector('[data-sidepanel-test-styles]')?.remove();
+  });
+
+  it('renders the open panel above the fixed Carbon header', () => {
+    const styleElement = document.createElement('style');
+    styleElement.dataset.sidepanelTestStyles = 'true';
+    styleElement.textContent = sidePanelStyles;
+    document.head.appendChild(styleElement);
+
+    render(
+      <>
+        <header data-testid="carbon-header" style={{ position: 'fixed', zIndex: 8000 }} />
+        <SidePanel isOpen onClose={() => {}}>
+          Application details
+        </SidePanel>
+      </>
+    );
+
+    const headerZIndex = Number(window.getComputedStyle(screen.getByTestId('carbon-header')).zIndex);
+    const overlayZIndex = Number(window.getComputedStyle(document.querySelector('.sidepanel-overlay')).zIndex);
+
+    expect(overlayZIndex).toBeGreaterThan(headerZIndex);
   });
 });
