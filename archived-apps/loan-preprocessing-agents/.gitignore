@@ -209,3 +209,10 @@ dist-ssr
 
 .DS_Store
 uploads/
+
+# Local legacy-persistence migration artifacts
+backend/loan_app.db
+backend/loan_app.db-*
+backend/logs.json
+backend/.migration-backups/
+backend/.env.postgres
