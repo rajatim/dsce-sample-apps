@@ -20,7 +20,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from utils.cos_client import COSClient
-from utils.agents import invoke_agents, get_logs
+from repositories.agent_events import list_events
+from utils.agents import invoke_agents
 from utils.chat_image import ChatWithImage
 from utils.kv_extraction import extract_key_value_pairs
 
@@ -534,7 +535,7 @@ async def get_application_logs(
 
     if not application:
         raise HTTPException(status_code=404, detail="Application not found or access denied.")
-    logs = get_logs(app_id_str)
+    logs = list_events(app_id_str)
     return {"logs": logs}
 
 @app.get("/download_sample_documents")

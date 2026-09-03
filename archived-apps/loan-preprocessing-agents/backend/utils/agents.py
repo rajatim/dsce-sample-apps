@@ -1,12 +1,12 @@
-from typing import Callable, Optional, List, Sequence, Union
+from typing import Callable, List, Optional, Sequence, Union
 import os
 import json
 import time
 import requests
-from tinydb import TinyDB, Query
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
 from datetime import date, datetime, timezone
+from repositories.agent_events import append_event
 
 load_dotenv(override=False)
 
@@ -25,10 +25,6 @@ elif WXO_INSTANCE_CLOUD == "ibmcloud":
     base_url = f"https://api.{WXO_INSTANCE_CLOUD_REGION}.watson-orchestrate.cloud.ibm.com/instances/{WXO_INSTANCE_ID}/v1/orchestrate"
 else:
     base_url = f"https://api.dl.watson-orchestrate.ibm.com/instances/{WXO_INSTANCE_ID}/v1/orchestrate"
-
-# Initialize TinyDB
-db = TinyDB("logs.json")
-Logs = Query()
 
 MAX_AGENT_ATTEMPTS = 3
 MAX_FINAL_CONTINUATIONS = 2
@@ -71,13 +67,8 @@ def _is_complete_validator_result(result) -> bool:
     )
 
 def log_to_db(application_id: str, stage: str, data: dict):
-    """Store log data in TinyDB under the application_id with a timestamp"""
-    db.insert({
-        "application_id": application_id,
-        "stage": stage,
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "data": data
-    })
+    """Persist an agent log using the SQL event repository."""
+    append_event(application_id, stage, data)
 
 def get_bearer_token(API_KEY) -> str:
     """Obtain bearer token from API key"""
@@ -580,7 +571,3 @@ Document Validation Result:
     if final_parse_error:
         raise final_parse_error
     raise ValueError("Agent returned an incomplete final decision")
-
-def get_logs(application_id: str) -> List[dict]:
-    """Retrieve all logs for a given application_id"""
-    return db.search(Logs.application_id == application_id)
