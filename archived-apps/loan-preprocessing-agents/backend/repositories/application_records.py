@@ -13,11 +13,13 @@ def _safe_error_text(error_text: str | None) -> str | None:
         return None
 
     safe_text = error_text
-    wxo_api_key = os.getenv("WXO_API_KEY")
-    if wxo_api_key:
-        safe_text = safe_text.replace(wxo_api_key, "[REDACTED]")
+    for environment_name in ("WXO_API_KEY", "DATABASE_URL"):
+        secret_value = os.getenv(environment_name)
+        if secret_value:
+            safe_text = safe_text.replace(secret_value, "[REDACTED]")
     safe_text = re.sub(
-        r"(?i)authorization['\"]?\s*[:=]\s*['\"]?(?:bearer\s+)?[^'\"\s,;}]+",
+        r"(?i)authorization['\"]?\s*[:=]\s*['\"]?"
+        r"(?:[a-z][a-z0-9_-]*\s+)?[^'\"\s,;}]+['\"]?",
         "Authorization: [REDACTED]",
         safe_text,
     )
@@ -26,11 +28,12 @@ def _safe_error_text(error_text: str | None) -> str | None:
         "Bearer [REDACTED]",
         safe_text,
     )
-    safe_text = re.sub(
-        r"(?i)(wxo_api_key\s*[:=]\s*)[^'\"\s,;}]+",
-        r"\1[REDACTED]",
-        safe_text,
-    )
+    for label in ("WXO_API_KEY", "DATABASE_URL"):
+        safe_text = re.sub(
+            rf"(?i)({label}\s*)[:=]\s*(?:'[^']*'|\"[^\"]*\"|[^\s,;}}]+)",
+            rf"\1=[REDACTED]",
+            safe_text,
+        )
     return safe_text
 
 

@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.datastructures import Headers
@@ -19,6 +19,7 @@ from starlette.datastructures import Headers
 from database import Base
 from models import Application, ApplicationDocument, ProcessingRun, User
 from repositories import application_records
+from utils.cos_client import COSClient, ClientError
 import main
 
 
@@ -263,6 +264,111 @@ class ApplicationRecordRepositoryTests(unittest.TestCase):
             hashlib.sha256(b"application form").hexdigest(),
         )
 
+    def test_cos_upload_failure_does_not_persist_document_metadata(self):
+        cos_client = COSClient.__new__(COSClient)
+        cos_client._cos = Mock()
+        cos_client._cos.upload_file.side_effect = ClientError(
+            {"Error": {"Code": "InternalError", "Message": "upload failed"}},
+            "UploadFile",
+        )
+        upload_directory = str(Path(self.temporary_directory.name) / "uploads")
+        caught_error = None
+
+        with (
+            patch.object(main, "get_cos_client", return_value=cos_client),
+            patch.object(main, "UPLOAD_DIRECTORY", upload_directory),
+        ):
+            try:
+                asyncio.run(
+                    main.submit_application_form(
+                        background_tasks=Mock(),
+                        formDataJson=json.dumps(
+                            {
+                                "firstName": "Record",
+                                "lastName": "Owner",
+                                "loanType": "Home Renovation",
+                                "loanAmount": 50000,
+                            }
+                        ),
+                        idProof=self.upload(
+                            "passport.png",
+                            b"passport",
+                            "image/png",
+                        ),
+                        incomeProof=self.upload(
+                            "paystub.pdf",
+                            b"paystub",
+                            "application/pdf",
+                        ),
+                        addressProof=self.upload(
+                            "utility.pdf",
+                            b"utility",
+                            "application/pdf",
+                        ),
+                        additionalDocs=None,
+                        demoScenario=None,
+                        db=self.session,
+                        current_user=SimpleNamespace(id=1, username="record-owner"),
+                    )
+                )
+            except HTTPException as error:
+                caught_error = error
+
+        self.assertIsNotNone(caught_error)
+        self.assertEqual(caught_error.status_code, 500)
+        self.assertEqual(self.session.query(ApplicationDocument).count(), 0)
+
+    def test_successful_cos_upload_uses_each_persisted_object_key(self):
+        cos_client = COSClient.__new__(COSClient)
+        cos_client._cos = Mock()
+        upload_directory = str(Path(self.temporary_directory.name) / "uploads")
+
+        with (
+            patch.object(main, "get_cos_client", return_value=cos_client),
+            patch.object(main, "UPLOAD_DIRECTORY", upload_directory),
+        ):
+            result = asyncio.run(
+                main.submit_application_form(
+                    background_tasks=Mock(),
+                    formDataJson=json.dumps(
+                        {
+                            "firstName": "Record",
+                            "lastName": "Owner",
+                            "loanType": "Home Renovation",
+                            "loanAmount": 50000,
+                        }
+                    ),
+                    idProof=self.upload("passport.png", b"passport", "image/png"),
+                    incomeProof=self.upload(
+                        "paystub.pdf",
+                        b"paystub",
+                        "application/pdf",
+                    ),
+                    addressProof=self.upload(
+                        "utility.pdf",
+                        b"utility",
+                        "application/pdf",
+                    ),
+                    additionalDocs=None,
+                    demoScenario=None,
+                    db=self.session,
+                    current_user=SimpleNamespace(id=1, username="record-owner"),
+                )
+            )
+
+        application = (
+            self.session.query(Application)
+            .filter(Application.app_id_str == result["application_id"])
+            .one()
+        )
+        persisted_keys = sorted(
+            document.cos_object_key for document in application.documents
+        )
+        uploaded_keys = sorted(
+            call.args[2] for call in cos_client._cos.upload_file.call_args_list
+        )
+        self.assertEqual(uploaded_keys, persisted_keys)
+
     def test_background_attempts_finish_without_changing_business_status_rules(self):
         success = {
             "loan_application_status": "passed",
@@ -373,6 +479,55 @@ class ApplicationRecordRepositoryTests(unittest.TestCase):
         self.assertNotIn("bearer-secret", stored_error)
         self.assertNotIn("wxo-secret", stored_error)
         self.assertNotIn("bare-wxo-secret", stored_error)
+
+    def test_failed_run_redacts_database_url_credentials(self):
+        run_id = application_records.start_processing_run(self.application.id)
+        error = (
+            "Database unavailable; "
+            "DATABASE_URL=postgresql+psycopg://user:db-secret@host/db; "
+            "retry later"
+        )
+
+        application_records.finish_processing_run(run_id, "failed", error)
+
+        self.assertEqual(
+            self.get_run(run_id).error_text,
+            "Database unavailable; DATABASE_URL=[REDACTED]; retry later",
+        )
+
+    def test_failed_run_redacts_non_bearer_authorization_credentials(self):
+        run_id = application_records.start_processing_run(self.application.id)
+        error = "Request failed; Authorization: Basic basic-secret; retry later"
+
+        application_records.finish_processing_run(run_id, "failed", error)
+
+        self.assertEqual(
+            self.get_run(run_id).error_text,
+            "Request failed; Authorization: [REDACTED]; retry later",
+        )
+
+    def test_failed_run_redacts_standalone_bearer_credentials(self):
+        run_id = application_records.start_processing_run(self.application.id)
+        error = "Request failed with Bearer standalone-secret; retry later"
+
+        application_records.finish_processing_run(run_id, "failed", error)
+
+        self.assertEqual(
+            self.get_run(run_id).error_text,
+            "Request failed with Bearer [REDACTED]; retry later",
+        )
+
+    def test_failed_run_redacts_quoted_labeled_wxo_credentials(self):
+        run_id = application_records.start_processing_run(self.application.id)
+        error = "Agent failed; WXO_API_KEY='quoted-wxo-secret'; retry later"
+
+        with patch.dict(os.environ, {"WXO_API_KEY": "different-current-secret"}):
+            application_records.finish_processing_run(run_id, "failed", error)
+
+        self.assertEqual(
+            self.get_run(run_id).error_text,
+            "Agent failed; WXO_API_KEY=[REDACTED]; retry later",
+        )
 
 
 if __name__ == "__main__":

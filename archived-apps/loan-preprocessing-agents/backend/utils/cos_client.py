@@ -261,6 +261,7 @@ class COSClient:
             logger.info(f"Uploaded {local_filepath} to {output_filepath} in bucket {bucket_name}")
         except ClientError as be:
             logger.info(f"CLIENT ERROR: {be}")
+            raise
 
     def read_json_from_cos(self, bucket_name: str, json_filepath: str) -> dict:
         """
