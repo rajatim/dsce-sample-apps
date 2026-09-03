@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
@@ -41,7 +40,7 @@ class _PreparedEvent:
     stage: str
     occurred_at: datetime
     payload: object = field(compare=False)
-    payload_json: str
+    payload_semantics: tuple
 
 
 def import_snapshot(snapshot: LegacySnapshot, session_factory, apply: bool) -> MigrationReport:
@@ -153,7 +152,7 @@ def _prepare_rows(
             stage=event.stage,
             occurred_at=_utc_datetime(event.occurred_at),
             payload=event.payload,
-            payload_json=_canonical_json(event.payload),
+            payload_semantics=_json_semantics(event.payload),
         )
         existing_event = events.get(event.source_id)
         if existing_event is not None and existing_event != prepared_event:
@@ -188,17 +187,33 @@ def _utc_datetime(value) -> datetime:
     return value.astimezone(UTC)
 
 
-def _canonical_json(value) -> str:
-    try:
-        return json.dumps(
-            value,
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
+def _json_semantics(value) -> tuple:
+    if value is None:
+        return ("null",)
+    if isinstance(value, bool):
+        return ("boolean", value)
+    if isinstance(value, (int, float)):
+        number = Decimal(str(value))
+        if not number.is_finite():
+            raise ValueError("invalid legacy event payload")
+        return ("number", number)
+    if isinstance(value, str):
+        return ("string", value)
+    if isinstance(value, (list, tuple)):
+        return ("array", tuple(_json_semantics(item) for item in value))
+    if isinstance(value, dict):
+        if not all(isinstance(key, str) for key in value):
+            raise ValueError("invalid legacy event payload")
+        return (
+            "object",
+            tuple(
+                sorted(
+                    (key, _json_semantics(item))
+                    for key, item in value.items()
+                )
+            ),
         )
-    except (TypeError, ValueError):
-        raise ValueError("invalid legacy event payload") from None
+    raise ValueError("invalid legacy event payload")
 
 
 def _insert_users(
@@ -331,7 +346,7 @@ def _event_matches(
         and existing.external_application_id == prepared.external_application_id
         and existing.stage == prepared.stage
         and _utc_datetime(existing.occurred_at) == prepared.occurred_at
-        and _canonical_json(existing.payload) == prepared.payload_json
+        and _json_semantics(existing.payload) == prepared.payload_semantics
     )
 
 

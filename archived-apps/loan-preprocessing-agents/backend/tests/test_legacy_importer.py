@@ -394,6 +394,88 @@ class LegacyImporterTests(unittest.TestCase):
             {User: 1, Application: 0, AgentEvent: 0, MigrationAnomaly: 0},
         )
 
+    def test_existing_event_treats_integer_and_float_json_numbers_as_equal(self):
+        integer_event = replace(self.snapshot.events[0], payload={"number": 1})
+        first_snapshot = replace(
+            self.snapshot,
+            events=[integer_event],
+            anomalies=[],
+        )
+        import_snapshot(first_snapshot, self.session_factory, apply=True)
+        float_event = replace(integer_event, payload={"number": 1.0})
+        second_snapshot = replace(first_snapshot, events=[float_event])
+
+        report = import_snapshot(second_snapshot, self.session_factory, apply=True)
+
+        self.assertEqual(report.events_inserted, 0)
+        with self.session_factory() as session:
+            self.assertEqual(session.query(AgentEvent).count(), 1)
+
+    def test_duplicate_snapshot_event_deduplicates_equal_json_numbers(self):
+        integer_event = replace(self.snapshot.events[0], payload={"number": 1})
+        float_event = replace(integer_event, payload={"number": 1.0})
+        duplicate_snapshot = replace(
+            self.snapshot,
+            events=[integer_event, float_event],
+            anomalies=[],
+        )
+
+        report = import_snapshot(duplicate_snapshot, self.session_factory, apply=True)
+
+        self.assertEqual(report.events_seen, 2)
+        self.assertEqual(report.events_inserted, 1)
+        with self.session_factory() as session:
+            self.assertEqual(session.query(AgentEvent).count(), 1)
+
+    def test_duplicate_snapshot_event_keeps_boolean_distinct_from_number(self):
+        boolean_event = replace(self.snapshot.events[0], payload={"value": True})
+        number_event = replace(boolean_event, payload={"value": 1})
+        conflicting_snapshot = replace(
+            self.snapshot,
+            events=[boolean_event, number_event],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^conflicting legacy event for legacy_source_id$",
+        ):
+            import_snapshot(conflicting_snapshot, self.session_factory, apply=False)
+
+    def test_duplicate_snapshot_event_keeps_array_order_significant(self):
+        forward_event = replace(self.snapshot.events[0], payload=[1, 2])
+        reverse_event = replace(forward_event, payload=[2, 1])
+        conflicting_snapshot = replace(
+            self.snapshot,
+            events=[forward_event, reverse_event],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^conflicting legacy event for legacy_source_id$",
+        ):
+            import_snapshot(conflicting_snapshot, self.session_factory, apply=False)
+
+    def test_duplicate_snapshot_event_ignores_object_key_order(self):
+        first_event = replace(
+            self.snapshot.events[0],
+            payload={"outer": {"alpha": 1, "beta": 2}},
+        )
+        reordered_event = replace(
+            first_event,
+            payload={"outer": {"beta": 2, "alpha": 1}},
+        )
+        duplicate_snapshot = replace(
+            self.snapshot,
+            events=[first_event, reordered_event],
+            anomalies=[],
+        )
+
+        report = import_snapshot(duplicate_snapshot, self.session_factory, apply=True)
+
+        self.assertEqual(report.events_inserted, 1)
+        with self.session_factory() as session:
+            self.assertEqual(session.query(AgentEvent).count(), 1)
+
     def test_invalid_conversion_rolls_back_the_whole_apply(self):
         invalid_application = dict(self.snapshot.applications[1])
         invalid_application["submitted_date"] = "not-an-iso-date"
