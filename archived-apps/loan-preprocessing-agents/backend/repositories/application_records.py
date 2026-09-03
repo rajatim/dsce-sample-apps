@@ -18,8 +18,7 @@ def _safe_error_text(error_text: str | None) -> str | None:
         if secret_value:
             safe_text = safe_text.replace(secret_value, "[REDACTED]")
     safe_text = re.sub(
-        r"(?i)authorization['\"]?\s*[:=]\s*['\"]?"
-        r"(?:[a-z][a-z0-9_-]*\s+)?[^'\"\s,;}]+['\"]?",
+        r"(?im)authorization['\"]?\s*[:=]\s*[^\r\n;]*",
         "Authorization: [REDACTED]",
         safe_text,
     )

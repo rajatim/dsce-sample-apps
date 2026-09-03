@@ -506,6 +506,24 @@ class ApplicationRecordRepositoryTests(unittest.TestCase):
             "Request failed; Authorization: [REDACTED]; retry later",
         )
 
+    def test_failed_run_redacts_the_complete_digest_authorization_header(self):
+        run_id = application_records.start_processing_run(self.application.id)
+        error = (
+            "Agent request failed\n"
+            'Authorization: Digest username="agent", realm="loan-api", '
+            'uri="/loans", response="digest-secret"\n'
+            "Retry remains available, application status unchanged."
+        )
+
+        application_records.finish_processing_run(run_id, "failed", error)
+
+        self.assertEqual(
+            self.get_run(run_id).error_text,
+            "Agent request failed\n"
+            "Authorization: [REDACTED]\n"
+            "Retry remains available, application status unchanged.",
+        )
+
     def test_failed_run_redacts_standalone_bearer_credentials(self):
         run_id = application_records.start_processing_run(self.application.id)
         error = "Request failed with Bearer standalone-secret; retry later"
