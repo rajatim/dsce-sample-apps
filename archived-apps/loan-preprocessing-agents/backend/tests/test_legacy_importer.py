@@ -134,6 +134,31 @@ class LegacyImporterTests(unittest.TestCase):
                 MigrationAnomaly: session.query(MigrationAnomaly).count(),
             }
 
+    def _seed_existing_application(self, *, owner_id=88, status="Approved AS-IS "):
+        with self.session_factory.begin() as session:
+            session.add(
+                User(
+                    id=88,
+                    username="loan-user",
+                    hashed_password="already-there",
+                    first_name="Existing",
+                    last_name="Owner",
+                    date_of_birth=date(1981, 2, 3),
+                )
+            )
+            session.add(
+                Application(
+                    app_id_str="known-app",
+                    applicant_name="Loan User",
+                    loan_type="Home Renovation",
+                    amount=Decimal("1234.50"),
+                    status=status,
+                    submitted_date=date(2026, 9, 3),
+                    validation_comments="validation stays exactly\nunchanged",
+                    owner_id=owner_id,
+                )
+            )
+
     def test_dry_run_reports_seen_records_and_writes_nothing(self):
         report = import_snapshot(self.snapshot, self.session_factory, apply=False)
 
@@ -235,6 +260,139 @@ class LegacyImporterTests(unittest.TestCase):
             }
             self.assertEqual(owners, {88})
             self.assertEqual(session.get(User, 88).hashed_password, "already-there")
+
+    def test_existing_application_with_different_mapped_owner_aborts_apply(self):
+        self._seed_existing_application(owner_id=7)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^target application conflicts with legacy app_id_str$",
+        ):
+            import_snapshot(self.snapshot, self.session_factory, apply=True)
+
+        self.assertEqual(
+            self._counts(),
+            {User: 2, Application: 1, AgentEvent: 0, MigrationAnomaly: 0},
+        )
+
+    def test_existing_application_with_different_legacy_content_aborts_apply(self):
+        self._seed_existing_application(status="target-only-sensitive-status")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^target application conflicts with legacy app_id_str$",
+        ) as error:
+            import_snapshot(self.snapshot, self.session_factory, apply=True)
+
+        self.assertNotIn("target-only-sensitive-status", str(error.exception))
+        self.assertEqual(
+            self._counts(),
+            {User: 2, Application: 1, AgentEvent: 0, MigrationAnomaly: 0},
+        )
+
+    def test_existing_event_with_different_content_rolls_back_prior_inserts(self):
+        import_snapshot(self.snapshot, self.session_factory, apply=True)
+        with self.session_factory.begin() as session:
+            event = session.query(AgentEvent).filter_by(legacy_source_id="1").one()
+            event.stage = "target-only-sensitive-stage"
+        late_application = dict(self.snapshot.applications[1])
+        late_application["id"] = 13
+        late_application["app_id_str"] = "late-app"
+        expanded_snapshot = replace(
+            self.snapshot,
+            applications=[*self.snapshot.applications, late_application],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^target event conflicts with legacy_source_id$",
+        ) as error:
+            import_snapshot(expanded_snapshot, self.session_factory, apply=True)
+
+        self.assertNotIn("target-only-sensitive-stage", str(error.exception))
+        with self.session_factory() as session:
+            self.assertIsNone(
+                session.query(Application).filter_by(app_id_str="late-app").one_or_none()
+            )
+        self.assertEqual(
+            self._counts(),
+            {User: 2, Application: 2, AgentEvent: 3, MigrationAnomaly: 1},
+        )
+
+    def test_duplicate_snapshot_username_with_conflicting_hash_is_rejected(self):
+        duplicate_user = dict(self.snapshot.users[0])
+        duplicate_user["hashed_password"] = "duplicate-user-sensitive-hash"
+        conflicting_snapshot = replace(
+            self.snapshot,
+            users=[self.snapshot.users[0], duplicate_user],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^conflicting legacy user for username$",
+        ) as error:
+            import_snapshot(conflicting_snapshot, self.session_factory, apply=False)
+
+        self.assertNotIn("duplicate-user-sensitive-hash", str(error.exception))
+        self.assertEqual(
+            self._counts(),
+            {User: 1, Application: 0, AgentEvent: 0, MigrationAnomaly: 0},
+        )
+
+    def test_duplicate_snapshot_application_with_conflicting_content_is_rejected(self):
+        duplicate_application = dict(self.snapshot.applications[0])
+        duplicate_application["status"] = "duplicate-app-sensitive-status"
+        conflicting_snapshot = replace(
+            self.snapshot,
+            applications=[self.snapshot.applications[0], duplicate_application],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^conflicting legacy application for app_id_str$",
+        ) as error:
+            import_snapshot(conflicting_snapshot, self.session_factory, apply=False)
+
+        self.assertNotIn("duplicate-app-sensitive-status", str(error.exception))
+        self.assertEqual(
+            self._counts(),
+            {User: 1, Application: 0, AgentEvent: 0, MigrationAnomaly: 0},
+        )
+
+    def test_duplicate_snapshot_application_is_converted_before_deduplication(self):
+        duplicate_application = dict(self.snapshot.applications[0])
+        duplicate_application["submitted_date"] = "duplicate-invalid-date-secret"
+        invalid_snapshot = replace(
+            self.snapshot,
+            applications=[self.snapshot.applications[0], duplicate_application],
+        )
+
+        with self.assertRaisesRegex(ValueError, "^invalid legacy ISO date$") as error:
+            import_snapshot(invalid_snapshot, self.session_factory, apply=False)
+
+        self.assertNotIn("duplicate-invalid-date-secret", str(error.exception))
+
+    def test_duplicate_snapshot_event_with_conflicting_payload_is_rejected(self):
+        duplicate_event = replace(
+            self.snapshot.events[0],
+            payload={"sensitive": "duplicate-event-payload"},
+        )
+        conflicting_snapshot = replace(
+            self.snapshot,
+            events=[self.snapshot.events[0], duplicate_event],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^conflicting legacy event for legacy_source_id$",
+        ) as error:
+            import_snapshot(conflicting_snapshot, self.session_factory, apply=False)
+
+        self.assertNotIn("duplicate-event-payload", str(error.exception))
+        self.assertEqual(
+            self._counts(),
+            {User: 1, Application: 0, AgentEvent: 0, MigrationAnomaly: 0},
+        )
 
     def test_invalid_conversion_rolls_back_the_whole_apply(self):
         invalid_application = dict(self.snapshot.applications[1])
