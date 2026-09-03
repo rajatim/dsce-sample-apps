@@ -27,9 +27,6 @@ from utils.kv_extraction import extract_key_value_pairs
 # These are your local modules
 import models, schemas, security, database
 
-# Create local DB tables upon startup
-models.Base.metadata.create_all(bind=database.engine)
-
 app = FastAPI(title="Loan Application API")
 
 
