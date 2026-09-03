@@ -18,8 +18,14 @@ from fastapi import FastAPI, Depends, HTTPException, status, File, Form, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from utils.cos_client import COSClient
+from repositories.application_records import (
+    finish_processing_run,
+    record_document,
+    start_processing_run,
+)
 from repositories.agent_events import list_events
 from utils.agents import invoke_agents
 from utils.chat_image import ChatWithImage
@@ -132,21 +138,52 @@ def save_application_upload(
     app_upload_dir: str,
     file_key: str,
     demo_scenario: Optional[str],
-) -> str:
+) -> tuple[str, dict]:
     digest = hashlib.sha256()
+    size_bytes = 0
     upload_file.file.seek(0)
     while chunk := upload_file.file.read(1024 * 1024):
         digest.update(chunk)
+        size_bytes += len(chunk)
     upload_file.file.seek(0)
+    content_sha256 = digest.hexdigest()
     safe_name = resolve_upload_name(
         file_key,
         upload_file.filename,
         demo_scenario,
-        digest.hexdigest(),
+        content_sha256,
     )
     destination = os.path.join(app_upload_dir, safe_name)
     save_upload_file(upload_file, destination)
-    return destination
+    return destination, {
+        "original_filename": upload_file.filename or "upload",
+        "safe_filename": safe_name,
+        "sha256": content_sha256,
+        "content_type": upload_file.content_type,
+        "size_bytes": size_bytes,
+        "cos_object_key": destination,
+    }
+
+
+def record_saved_documents(application, saved_documents):
+    """Persist upload metadata once its parent application is durable."""
+    try:
+        is_persistent = inspect(application).persistent
+    except Exception:
+        is_persistent = False
+    if not is_persistent:
+        return
+
+    for document_role, metadata in saved_documents:
+        record_document(
+            application_id=application.id,
+            document_role=document_role,
+            original_filename=metadata["original_filename"],
+            cos_object_key=metadata["cos_object_key"],
+            content_type=metadata["content_type"],
+            size_bytes=metadata["size_bytes"],
+            sha256=metadata["sha256"],
+        )
 
 
 def stream_fixture_member(archive_name: str):
@@ -229,11 +266,21 @@ def dict_to_markdown(data, indent=0):
 
 def process_application_in_background(app_id, uploaded_files, application_file_path, db):
     db = database.SessionLocal()
+    run_id = None
+    run_status = "failed"
+    run_error = None
     try:
         application_to_update = db.query(models.Application).filter(models.Application.id == app_id).first()
         if not application_to_update:
             print(f"BACKGROUND TASK ERROR: Application with ID {app_id} not found.")
             return
+
+        try:
+            is_persistent = inspect(application_to_update).persistent
+        except Exception:
+            is_persistent = False
+        if is_persistent:
+            run_id = start_processing_run(app_id)
 
         app_id_str = application_to_update.app_id_str
         application_to_update.status = "Processing"
@@ -258,7 +305,9 @@ def process_application_in_background(app_id, uploaded_files, application_file_p
         validation_comments = application_status.get("validation_details", {"error": "Error processing application"})
         application_to_update.validation_comments = dict_to_markdown(validation_comments)
         db.commit()
+        run_status = "completed"
     except Exception as error:
+        run_error = str(error)
         print(f"BACKGROUND TASK ERROR: Application {app_id} processing failed: {error}")
         if 'application_to_update' in locals() and application_to_update:
             application_to_update.status = "Processing Failed"
@@ -267,7 +316,11 @@ def process_application_in_background(app_id, uploaded_files, application_file_p
             })
             db.commit()
     finally:
-        db.close()
+        try:
+            if run_id is not None:
+                finish_processing_run(run_id, run_status, run_error)
+        finally:
+            db.close()
 
 # --- Authentication Endpoints ---
 
@@ -417,18 +470,33 @@ async def submit_application_form(
 
     os.makedirs(app_upload_dir, exist_ok=True)
     uploaded_files = []
+    saved_documents = []
     try:
-        uploaded_files.extend([
-            save_application_upload(idProof, app_upload_dir, "idProof", demoScenario),
-            save_application_upload(incomeProof, app_upload_dir, "incomeProof", demoScenario),
-            save_application_upload(addressProof, app_upload_dir, "addressProof", demoScenario),
-        ])
+        for document_role, upload in (
+            ("idProof", idProof),
+            ("incomeProof", incomeProof),
+            ("addressProof", addressProof),
+        ):
+            path, metadata = save_application_upload(
+                upload,
+                app_upload_dir,
+                document_role,
+                demoScenario,
+            )
+            uploaded_files.append(path)
+            saved_documents.append((document_role, metadata))
         if additionalDocs:
             for doc in additionalDocs:
                 file_key = "ssn" if doc.filename.rsplit("/", 1)[-1].endswith("SSN.png") else "additional"
-                uploaded_files.append(
-                    save_application_upload(doc, app_upload_dir, file_key, demoScenario)
+                path, metadata = save_application_upload(
+                    doc,
+                    app_upload_dir,
+                    file_key,
+                    demoScenario,
                 )
+                uploaded_files.append(path)
+                saved_documents.append((file_key, metadata))
+        record_saved_documents(new_application, saved_documents)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving files: {e}")
 
@@ -460,23 +528,38 @@ async def submit_pdf_form(
     app_upload_dir = os.path.join(UPLOAD_DIRECTORY, app_id_str)
     os.makedirs(app_upload_dir, exist_ok=True)
     uploaded_files = []
+    saved_documents = []
     try:
-        application_pdf_path = save_application_upload(
+        application_pdf_path, application_pdf_metadata = save_application_upload(
             applicationPdf,
             app_upload_dir,
             "applicationPdf",
             demoScenario,
         )
-        uploaded_files.extend([
-            save_application_upload(idProof, app_upload_dir, "idProof", demoScenario),
-            save_application_upload(incomeProof, app_upload_dir, "incomeProof", demoScenario),
-            save_application_upload(addressProof, app_upload_dir, "addressProof", demoScenario),
-        ])
+        saved_documents.append(("applicationPdf", application_pdf_metadata))
+        for document_role, upload in (
+            ("idProof", idProof),
+            ("incomeProof", incomeProof),
+            ("addressProof", addressProof),
+        ):
+            path, metadata = save_application_upload(
+                upload,
+                app_upload_dir,
+                document_role,
+                demoScenario,
+            )
+            uploaded_files.append(path)
+            saved_documents.append((document_role, metadata))
         for doc in additionalDocs:
             file_key = "ssn" if doc.filename.rsplit("/", 1)[-1].endswith("SSN.png") else "additional"
-            uploaded_files.append(
-                save_application_upload(doc, app_upload_dir, file_key, demoScenario)
+            path, metadata = save_application_upload(
+                doc,
+                app_upload_dir,
+                file_key,
+                demoScenario,
             )
+            uploaded_files.append(path)
+            saved_documents.append((file_key, metadata))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving files: {e}")
     
@@ -509,6 +592,7 @@ async def submit_pdf_form(
     )
     db.add(new_application)
     db.commit()
+    record_saved_documents(new_application, saved_documents)
 
 
     background_tasks.add_task(
