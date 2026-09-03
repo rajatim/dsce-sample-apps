@@ -1,13 +1,27 @@
+import os
+
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Use SQLite for this example. In production, you'd use PostgreSQL, etc.
-SQLALCHEMY_DATABASE_URL = "sqlite:///./loan_app.db"
+SQLITE_FALLBACK_URL = "sqlite:///./loan_app.db"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+
+def resolve_database_url() -> str:
+    return os.getenv("DATABASE_URL", SQLITE_FALLBACK_URL)
+
+
+def build_engine(database_url: str) -> Engine:
+    options = {"pool_pre_ping": True}
+    if database_url.startswith("sqlite:"):
+        options["connect_args"] = {"check_same_thread": False}
+    else:
+        options.update(pool_size=5, max_overflow=5, pool_recycle=300)
+    return create_engine(database_url, **options)
+
+
+engine = build_engine(resolve_database_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
