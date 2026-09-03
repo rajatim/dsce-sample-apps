@@ -10,6 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 
@@ -165,6 +166,63 @@ class BootstrapLocalPostgresTests(unittest.TestCase):
         self.assertTrue(server.connections[-1].autocommit)
 
 
+class PostgreSQLIntegrationTargetSafetyTests(unittest.TestCase):
+    def test_accepts_only_the_planned_loopback_database_targets(self):
+        for database_url in (
+            "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1/loan_poc_dev",
+            "postgresql://loan_app_dev:test-password@localhost:5432/loan_poc_dev",
+            "postgresql://loan_app_dev:test-password@[::1]:5432/loan_poc_dev",
+        ):
+            with self.subTest(database_url=database_url):
+                self.assertEqual(
+                    validate_test_database_url(database_url).database,
+                    "loan_poc_dev",
+                )
+
+    def test_rejects_remote_hosts_before_any_connection_can_be_created(self):
+        with self.assertRaisesRegex(ValueError, "loopback") as raised:
+            validate_test_database_url(
+                "postgresql+psycopg://loan_app_dev:unsafe-password@db.example/loan_poc_dev"
+            )
+
+        self.assertNotIn("unsafe-password", str(raised.exception))
+        self.assertNotIn("db.example", str(raised.exception))
+
+    def test_rejects_a_different_database_name(self):
+        with self.assertRaisesRegex(ValueError, "loan_poc_dev"):
+            validate_test_database_url(
+                "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1/other_database"
+            )
+
+    def test_rejects_non_postgresql_urls(self):
+        with self.assertRaisesRegex(ValueError, "PostgreSQL"):
+            validate_test_database_url("sqlite:///loan_poc_dev.db")
+
+    def test_rejects_nonstandard_ports(self):
+        with self.assertRaisesRegex(ValueError, "5432"):
+            validate_test_database_url(
+                "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1:6543/loan_poc_dev"
+            )
+
+
+def validate_test_database_url(database_url: str):
+    """Reject integration targets outside the disposable local POC database."""
+    try:
+        parsed_url = make_url(database_url)
+    except Exception as error:
+        raise ValueError("TEST_DATABASE_URL must be a local PostgreSQL URL") from error
+
+    if parsed_url.get_backend_name() != "postgresql":
+        raise ValueError("TEST_DATABASE_URL must use PostgreSQL")
+    if parsed_url.host not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("TEST_DATABASE_URL must use a loopback host")
+    if parsed_url.database != "loan_poc_dev":
+        raise ValueError("TEST_DATABASE_URL must target loan_poc_dev")
+    if parsed_url.port not in {None, 5432}:
+        raise ValueError("TEST_DATABASE_URL must use port 5432")
+    return parsed_url
+
+
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 
 
@@ -172,7 +230,8 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 class PostgreSQLIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(TEST_DATABASE_URL)
+        local_database_url = validate_test_database_url(TEST_DATABASE_URL)
+        cls.engine = create_engine(local_database_url)
         cls.Session = sessionmaker(autocommit=False, autoflush=False, bind=cls.engine)
 
     @classmethod
