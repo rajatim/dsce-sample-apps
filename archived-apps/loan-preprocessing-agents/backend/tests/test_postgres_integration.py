@@ -204,6 +204,19 @@ class PostgreSQLIntegrationTargetSafetyTests(unittest.TestCase):
                 "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1:6543/loan_poc_dev"
             )
 
+    def test_rejects_query_parameters_that_can_override_connection_target(self):
+        for database_url in (
+            "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1/loan_poc_dev?host=remote.example",
+            "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1/loan_poc_dev?port=6543",
+            "postgresql+psycopg://loan_app_dev:test-password@127.0.0.1/loan_poc_dev?dbname=other_database",
+        ):
+            with self.subTest(database_url=database_url):
+                with self.assertRaisesRegex(ValueError, "query parameters") as raised:
+                    validate_test_database_url(database_url)
+
+                self.assertNotIn("test-password", str(raised.exception))
+                self.assertNotIn("remote.example", str(raised.exception))
+
 
 def validate_test_database_url(database_url: str):
     """Reject integration targets outside the disposable local POC database."""
@@ -212,6 +225,8 @@ def validate_test_database_url(database_url: str):
     except Exception as error:
         raise ValueError("TEST_DATABASE_URL must be a local PostgreSQL URL") from error
 
+    if parsed_url.query:
+        raise ValueError("TEST_DATABASE_URL cannot include query parameters")
     if parsed_url.get_backend_name() != "postgresql":
         raise ValueError("TEST_DATABASE_URL must use PostgreSQL")
     if parsed_url.host not in {"127.0.0.1", "localhost", "::1"}:
