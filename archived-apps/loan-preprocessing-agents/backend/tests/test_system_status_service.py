@@ -34,6 +34,17 @@ class FakeClock:
         self.current += timedelta(seconds=seconds)
 
 
+class CoordinatedSystemStatusService(SystemStatusService):
+    def __init__(self, *, contender_evaluated, **kwargs):
+        super().__init__(**kwargs)
+        self._contender_evaluated = contender_evaluated
+
+    def _reusable_cached(self, now, force_refresh):
+        if threading.current_thread().name == "forced-status-contender":
+            self._contender_evaluated.set()
+        return super()._reusable_cached(now, force_refresh)
+
+
 def dependency(dependency_id, checked_at, status=StatusValue.READY):
     return DependencyStatus(
         id=dependency_id,
@@ -117,6 +128,25 @@ class SystemStatusServiceTests(unittest.TestCase):
         third = service.get_status(force_refresh=True)
         self.assertGreater(third.checked_at, second.checked_at)
         self.assertTrue(all(count == 2 for count in self.calls.values()))
+
+    def test_force_refresh_cooldown_starts_when_slow_refresh_completes(self):
+        clock = FakeClock()
+
+        def slow_postgresql(checked_at):
+            clock.advance(seconds=10)
+            return dependency("postgresql", checked_at)
+
+        service = self.make_service(
+            clock=clock,
+            overrides={"postgresql": slow_postgresql},
+        )
+
+        first = service.get_status()
+        clock.advance(seconds=10)
+        forced = service.get_status(force_refresh=True)
+
+        self.assertEqual(forced.checked_at, first.checked_at)
+        self.assertTrue(all(count == 1 for count in self.calls.values()))
 
     def test_one_timed_out_check_does_not_remove_other_results(self):
         release = threading.Event()
@@ -228,22 +258,35 @@ class SystemStatusServiceTests(unittest.TestCase):
     def test_concurrent_requests_share_one_refresh(self):
         entered = threading.Event()
         release = threading.Event()
+        contender_evaluated = threading.Event()
 
         def slow_postgresql(checked_at):
             entered.set()
             release.wait(timeout=1)
             return dependency("postgresql", checked_at)
 
-        service = self.make_service(overrides={"postgresql": slow_postgresql})
+        self.calls = Counter()
+        self.clock = FakeClock()
+        service = CoordinatedSystemStatusService(
+            contender_evaluated=contender_evaluated,
+            clock=self.clock,
+            dependency_checks=build_checks(
+                self.calls,
+                {"postgresql": slow_postgresql},
+            ),
+            activity_loader=lambda: {},
+        )
         results = []
 
         first = threading.Thread(target=lambda: results.append(service.get_status()))
         second = threading.Thread(
-            target=lambda: results.append(service.get_status(force_refresh=True))
+            name="forced-status-contender",
+            target=lambda: results.append(service.get_status(force_refresh=True)),
         )
         first.start()
         self.assertTrue(entered.wait(timeout=1))
         second.start()
+        self.assertTrue(contender_evaluated.wait(timeout=1))
         release.set()
         first.join(timeout=2)
         second.join(timeout=2)

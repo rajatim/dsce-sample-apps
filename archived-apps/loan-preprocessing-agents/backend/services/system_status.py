@@ -90,6 +90,7 @@ class SystemStatusService:
         self._total_check_budget_seconds = total_check_budget_seconds
         self._refresh_lock = threading.Lock()
         self._cached: SystemStatusResponse | None = None
+        self._last_refresh_completed_at: datetime | None = None
 
     def database_is_ready(self) -> bool:
         """Check only PostgreSQL for the readiness probe."""
@@ -120,6 +121,7 @@ class SystemStatusService:
                 return cached
 
             response = self._refresh(now)
+            self._last_refresh_completed_at = self._clock()
             self._cached = response
             return response
 
@@ -128,11 +130,14 @@ class SystemStatusService:
     ) -> SystemStatusResponse | None:
         if self._cached is None:
             return None
-        cache_age = self._age_seconds(now, self._cached.checked_at)
         if force_refresh:
-            if cache_age >= self._force_refresh_cooldown_seconds:
+            if self._last_refresh_completed_at is None:
+                return None
+            completed_age = self._age_seconds(now, self._last_refresh_completed_at)
+            if completed_age >= self._force_refresh_cooldown_seconds:
                 return None
         else:
+            cache_age = self._age_seconds(now, self._cached.checked_at)
             if cache_age >= self._cache_ttl_seconds:
                 return None
         return self._with_current_staleness(self._cached, now)
