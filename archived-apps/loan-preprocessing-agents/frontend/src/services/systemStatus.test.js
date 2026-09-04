@@ -25,10 +25,16 @@ describe('fetchSystemStatus', () => {
   beforeEach(() => {
     authFetchMock.mockReset();
     vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:8000');
+    authFetchMock.mockImplementation((url) => {
+      if (url !== 'http://127.0.0.1:8000/system-status'
+        && url !== 'http://127.0.0.1:8000/system-status?refresh=true') {
+        throw new Error(`unexpected URL: ${url}`);
+      }
+      return Promise.resolve(jsonResponse(validStatus));
+    });
   });
 
   it('requests the public status endpoint without refresh by default', async () => {
-    authFetchMock.mockResolvedValue(jsonResponse(validStatus));
     await fetchSystemStatus();
     expect(authFetchMock).toHaveBeenCalledWith(
       'http://127.0.0.1:8000/system-status',
@@ -37,9 +43,8 @@ describe('fetchSystemStatus', () => {
   });
 
   it('uses refresh=true only for a manual refresh', async () => {
-    authFetchMock.mockResolvedValue(jsonResponse(validStatus));
     await fetchSystemStatus({ refresh: true });
-    expect(authFetchMock.mock.calls[0][0]).toContain('/system-status?refresh=true');
+    expect(authFetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8000/system-status?refresh=true');
   });
 
   it.each([
@@ -54,5 +59,11 @@ describe('fetchSystemStatus', () => {
   it('rejects unknown statuses and non-array collections', async () => {
     authFetchMock.mockResolvedValue(jsonResponse({ ...validStatus, overall: { ...validStatus.overall, status: 'secret' }, capabilities: {} }));
     await expect(fetchSystemStatus()).rejects.toThrow('Demo status is currently unavailable.');
+  });
+
+  it('passes the caller signal through unchanged', async () => {
+    const signal = new AbortController().signal;
+    await fetchSystemStatus({ signal });
+    expect(authFetchMock.mock.calls[0][1].signal).toBe(signal);
   });
 });

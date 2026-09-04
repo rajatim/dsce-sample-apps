@@ -25,18 +25,20 @@ export const SystemStatusProvider = ({ children }) => {
     const controller = new AbortController();
     const promise = fetchSystemStatus({ refresh, signal: controller.signal })
       .then((nextStatus) => {
-        if (mountedRef.current) {
+        if (mountedRef.current && requestRef.current?.promise === promise) {
           setStatus(nextStatus);
           setError('');
         }
         return nextStatus;
       })
       .catch((loadError) => {
-        if (mountedRef.current && loadError?.name !== 'AbortError') setError('Demo status is currently unavailable.');
+        if (mountedRef.current && requestRef.current?.promise === promise && loadError?.name !== 'AbortError') {
+          setError('Demo status is currently unavailable.');
+        }
         throw loadError;
       })
       .finally(() => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || requestRef.current?.promise !== promise) return;
         setIsLoading(false);
         setIsRefreshing(false);
         if (requestRef.current?.promise === promise) requestRef.current = null;
