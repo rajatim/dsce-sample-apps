@@ -10,6 +10,7 @@ import yaml
 import shutil
 import uvicorn
 import uuid
+import requests
 from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -17,7 +18,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, File, Form, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from observability import initialize_observability, trace_workflow
@@ -28,6 +29,16 @@ from repositories.application_records import (
     start_processing_run,
 )
 from repositories.agent_events import list_events
+from repositories.status_activity import get_recent_agent_activity
+from services.status_checks import (
+    check_cos,
+    check_openllmetry,
+    check_postgresql,
+    check_watsonx,
+    check_wxo,
+)
+from services.system_status import SystemStatusService
+from status_models import SystemStatusResponse
 from utils.agents import invoke_agents
 from utils.chat_image import ChatWithImage
 from utils.kv_extraction import extract_key_value_pairs
@@ -68,6 +79,40 @@ app.add_middleware(
 initialize_observability(app)
 
 COS_BUCKET_NAME = os.getenv("COS_BUCKET_NAME", "loan-processing-bucket")
+system_status_service = SystemStatusService(
+    dependency_checks={
+        "postgresql": lambda checked_at: check_postgresql(
+            database.SessionLocal, checked_at
+        ),
+        "cos": lambda checked_at: check_cos(
+            get_cos_client, COS_BUCKET_NAME, checked_at
+        ),
+        "watsonx_ai": lambda checked_at: check_watsonx(
+            os.environ, requests, checked_at
+        ),
+        "wxo": lambda checked_at: check_wxo(os.environ, requests, checked_at),
+        "openllmetry": lambda checked_at: check_openllmetry(
+            os.environ,
+            getattr(app.state, "openllmetry_initialized", False),
+            checked_at,
+        ),
+    },
+    activity_loader=lambda: get_recent_agent_activity(),
+)
+
+
+@app.get("/readyz", include_in_schema=False)
+def readiness():
+    if system_status_service.database_is_ready():
+        return {"status": "ready"}
+    return JSONResponse(status_code=503, content={"status": "not_ready"})
+
+
+@app.get("/system-status", response_model=SystemStatusResponse)
+def system_status(refresh: bool = False):
+    return system_status_service.get_status(force_refresh=refresh)
+
+
 # --- File Handling ---
 UPLOAD_DIRECTORY = os.getenv("UPLOAD_DIRECTORY", "./uploads")
 ZIP_FILE_PATH = "data/sample_documents.zip"

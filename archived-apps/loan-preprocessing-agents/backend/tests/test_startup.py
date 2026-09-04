@@ -50,10 +50,19 @@ class StartupTest(unittest.TestCase):
                 sys.executable,
                 "-c",
                 (
-                    "from fastapi.testclient import TestClient; "
-                    "from main import app; "
-                    "response = TestClient(app).get('/healthz'); "
-                    "print(response.status_code); print(response.text)"
+                    "from fastapi.testclient import TestClient\n"
+                    "import main\n"
+                    "def fail(*args, **kwargs):\n"
+                    "    raise RuntimeError('dependency failed')\n"
+                    "main.check_postgresql = fail\n"
+                    "main.check_cos = fail\n"
+                    "main.check_watsonx = fail\n"
+                    "main.check_wxo = fail\n"
+                    "main.check_openllmetry = fail\n"
+                    "main.get_recent_agent_activity = fail\n"
+                    "response = TestClient(main.app).get('/healthz')\n"
+                    "print(response.status_code)\n"
+                    "print(response.text)"
                 ),
             ],
             cwd=BACKEND_DIRECTORY,
