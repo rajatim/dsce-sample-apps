@@ -159,6 +159,70 @@ curl --fail http://127.0.0.1:8000/openapi.json >/dev/null
 curl --fail http://127.0.0.1:8000/docs >/dev/null
 ```
 
+## Health, readiness, and demo status
+
+The backend exposes three unauthenticated operational endpoints with distinct
+purposes:
+
+- `GET /healthz` is a shallow liveness check. It reports only whether the
+  FastAPI process can respond and does not contact PostgreSQL or any IBM
+  service. Use it for the OpenShift liveness probe.
+- `GET /readyz` is readiness for traffic. It executes only PostgreSQL
+  `SELECT 1`; failure returns HTTP 503 with a fixed, sanitized body. Use it for
+  the OpenShift readiness probe. COS, watsonx.ai, WXO, and OpenLLMetry do not
+  affect this endpoint.
+- `GET /system-status` is a public, sanitized status document for the frontend
+  `/status` page. Its schema contains only fixed capability and dependency
+  fields; it never returns credentials, provider endpoints or identifiers,
+  applicant data, raw exceptions, or provider response bodies.
+
+The status service defaults to a 30-second cache, a 15-second cooldown for
+`?refresh=true`, a 90-second stale threshold, and a five-second total check
+budget. Concurrent callers share one refresh. A manual refresh is still
+subject to the cooldown and performs no model inference, WXO thread or run,
+Agent execution, or COS write.
+
+After an ephemeral IAM token exchange where required, the IBM service checks
+are low-cost and read-only: COS `HEAD Bucket`, watsonx.ai project metadata
+`GET`, and WXO registered-agents `GET`. The three Agents are verified by
+registration plus timestamp-only recent execution evidence; the status check
+never runs an Agent. OpenLLMetry is informational and never changes a user
+capability or the overall availability result.
+
+Verify only allowlisted public fields. Do not print the full dependency
+document during a shared-screen check:
+
+```bash
+curl --fail --silent http://127.0.0.1:8000/healthz \
+  | jq -e '.status == "ok"'
+curl --fail --silent http://127.0.0.1:8000/readyz \
+  | jq -e '.status == "ready"'
+curl --fail --silent http://127.0.0.1:8000/system-status \
+  | jq -e '
+      (.overall.status | IN("ready", "limited", "unavailable", "unknown")) and
+      (.capabilities | length == 4) and
+      ([.dependencies[].id] | index("postgresql") != null)
+    '
+curl --fail --silent \
+  'http://127.0.0.1:8000/system-status?refresh=true' \
+  | jq '{overall_status: .overall.status, checked_at, stale}'
+```
+
+When troubleshooting requires retaining a response, write it to a
+permission-restricted temporary file and inspect only named fields:
+
+```bash
+umask 077
+LOAN_STATUS_FILE="$(mktemp -t loan-system-status.XXXXXX)"
+curl --fail --silent http://127.0.0.1:8000/system-status \
+  --output "$LOAN_STATUS_FILE"
+jq '{overall_status: .overall.status, capability_count: (.capabilities | length), stale}' \
+  "$LOAN_STATUS_FILE"
+```
+
+Remove the temporary file when the investigation is complete. Never print
+credentials, the complete environment, or the complete dependency array.
+
 ## OpenLLMetry traces to Instana
 
 OpenLLMetry is disabled by default. In the `itz-pl4yvb` OpenShift cluster, the
@@ -223,7 +287,7 @@ untouched SQLite source:
 The fallback resolves to `sqlite:///./loan_app.db`. Check protected snapshot
 checksums before and after a rollback smoke test.
 
-## OpenShift handoff
+## OpenShift deployment gate and handoff
 
 OpenShift must supply `DATABASE_URL` from a Secret using the
 `postgresql+psycopg://` format shown above. PDF and image bytes remain in COS
@@ -234,3 +298,38 @@ Creating an OCP Shared PostgreSQL service, namespace, cluster, storage,
 backups, database roles, and project Secret is explicitly deferred outside
 this local cutover plan. Do not modify existing WXO, Zen, Instana, Tekton, or
 PostgreSQL resources as part of this procedure.
+
+Task 8 does not connect to or change `itz-pl4yvb`. Before any deployment work,
+obtain a separate, explicit approval for that deployment. Only after approval,
+perform the following read-only preflight and confirm the expected namespace
+is `dsce-loan-poc`:
+
+```bash
+kubectl config current-context
+kubectl auth whoami
+kubectl get deployment,service,route -n dsce-loan-poc
+kubectl get deployment loan-fastapi -n dsce-loan-poc -o yaml \
+  | yq '{
+      livenessProbe: .spec.template.spec.containers[].livenessProbe,
+      readinessProbe: .spec.template.spec.containers[].readinessProbe
+    }'
+kubectl get deployment loan-fastapi -n dsce-loan-poc \
+  -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
+```
+
+The expected Deployment name is `loan-fastapi`. If the live name differs,
+stop and update this procedure with the observed name before any mutation.
+Record the existing immutable image digest in the protected deployment record
+before rollout; do not rely on a mutable tag.
+
+Deployment execution must keep `/healthz` as liveness and set readiness to
+`/readyz`. Do not point either probe at `/system-status`, because IBM service
+latency must not restart a Pod or remove an otherwise ready API from service.
+After rollout, verify the probes, rollout state, `/status` route, desktop and
+mobile navigation, and the three public endpoints using only the allowlisted
+checks above.
+
+If rollback is required, set the Deployment image back to the exact recorded
+prior `registry/repository@sha256:...` digest and monitor the rollback. Never
+rebuild an old tag or infer a prior image from tag text. All deployment and
+rollback mutations remain behind the same explicit approval gate.

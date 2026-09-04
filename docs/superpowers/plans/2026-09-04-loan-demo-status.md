@@ -796,7 +796,7 @@ git commit -m "feat: show actionable loan capability notices"
 - Consumes: all prior tasks.
 - Produces: reproducible local SIT evidence and a safe OpenShift handoff; this task does not mutate `itz-pl4yvb`.
 
-- [ ] **Step 1: Add backend operating documentation**
+- [x] **Step 1: Add backend operating documentation**
 
 Document:
 
@@ -808,11 +808,11 @@ Document:
 - OpenLLMetry never affects overall availability.
 - `curl` examples must redirect bodies to a temporary file or parse only allowlisted status fields; do not print credentials or internal configuration.
 
-- [ ] **Step 2: Add frontend documentation**
+- [x] **Step 2: Add frontend documentation**
 
 Document `/status`, desktop/mobile entry points, local API proxy behavior, and the commands `npm test`, `npm run lint`, `npm run build`.
 
-- [ ] **Step 3: Run the complete automated verification from clean processes**
+- [x] **Step 3: Run the complete automated verification from clean processes**
 
 Backend:
 
@@ -834,7 +834,7 @@ npm run build
 
 Expected: every command exits 0; no test reaches real IBM Cloud.
 
-- [ ] **Step 4: Run local SIT with existing protected environment values**
+- [x] **Step 4: Run local SIT with existing protected environment values**
 
 Start FastAPI and Vite using the existing secret-loading procedure, then verify only public fields:
 
@@ -851,7 +851,7 @@ curl --fail --silent http://127.0.0.1:8000/system-status \
 
 Do not print the complete dependency JSON during shared-screen validation.
 
-- [ ] **Step 5: Perform browser acceptance at desktop and mobile widths**
+- [x] **Step 5: Perform browser acceptance at desktop and mobile widths**
 
 Verify:
 
@@ -862,7 +862,7 @@ Verify:
 - Apply and My Applications show no green success banner during normal operation.
 - No secret, ID, endpoint, PII or raw provider message appears in DOM or network response.
 
-- [ ] **Step 6: Record the OpenShift deployment gate**
+- [x] **Step 6: Record the OpenShift deployment gate**
 
 Before changing `itz-pl4yvb`, require a separate explicit deployment approval and complete these read-only checks:
 
@@ -876,7 +876,7 @@ kubectl get deployment loan-fastapi -n dsce-loan-poc -o yaml \
 
 Expected namespace: `dsce-loan-poc`. If the live Deployment name differs from `loan-fastapi`, stop and update the deployment procedure document with the observed name before any mutation. The deployment execution must preserve `/healthz` as liveness and point readiness to `/readyz`; rollback must use the existing prior image digest rather than rebuilding an old tag.
 
-- [ ] **Step 7: Confirm the worktree contains no runtime files or secrets**
+- [x] **Step 7: Confirm the worktree contains no runtime files or secrets**
 
 ```bash
 git status --short
@@ -888,7 +888,7 @@ git diff 1dd6ca2..HEAD | rg '(API_KEY|APIKEY|PASSWORD|Bearer )[=: ]+[A-Za-z0-9_-
 
 Expected: the two known runtime files may remain modified locally, but they are absent from all feature commits and diffs selected for handoff.
 
-- [ ] **Step 8: Commit documentation**
+- [x] **Step 8: Commit documentation**
 
 ```bash
 git add archived-apps/loan-preprocessing-agents/backend/README.md \
@@ -897,19 +897,39 @@ git add archived-apps/loan-preprocessing-agents/backend/README.md \
 git commit -m "docs: describe loan demo status operations"
 ```
 
+Task 8 execution deviations (2026-09-05):
+
+- The backend discovery suite completed with 175 passing tests and two guarded
+  PostgreSQL integration tests skipped because `TEST_DATABASE_URL` was
+  deliberately absent from the clean automated-test process. Local SIT then
+  exercised `/readyz` against the approved loopback PostgreSQL service.
+- Vite 7 rejected the attempted `--envDir` launch option before starting. The
+  successful launch instead read only `VITE_API_URL` from the existing
+  protected `.env.local`; no secret or complete environment was printed.
+- Browser tooling did not expose a response-body network capture. The same
+  public `/system-status` response was therefore written to a mode-600
+  temporary file, validated for allowlisted shape, scanned for forbidden field
+  and value patterns, and compared with protected environment values without
+  printing either the response or those values. Expanded DOM content was
+  scanned separately.
+- Per the Task 8 safety boundary, no OpenShift context, login, namespace, or
+  resource query was attempted. The read-only preflight, probe requirements,
+  immutable-digest rollback, and explicit approval gate are documented for a
+  later approved deployment session.
+
 ## Final Review Checklist
 
-- [ ] Every design-spec section maps to a task above.
-- [ ] Backend full suite passes with zero real IBM calls from tests.
-- [ ] Frontend full suite, lint and production build pass.
-- [ ] `/healthz` remains shallow and exact.
-- [ ] `/readyz` depends only on PostgreSQL.
-- [ ] `/system-status` contains only allowlisted public fields.
-- [ ] Manual refresh does not invoke LLM, WXO runs or COS writes.
-- [ ] Three Agents are checked by registration plus recent execution evidence, not by test execution.
-- [ ] OpenLLMetry failure does not change capability or overall status.
-- [ ] Desktop and mobile both expose `/status`.
-- [ ] User-flow notifications appear only for actionable limited/unavailable states.
-- [ ] Existing Loan form, PDF, presets, retry, application list and log viewer behavior remain intact.
-- [ ] No runtime database, logs or secrets are committed.
-- [ ] Public OpenShift deployment remains behind a separate explicit approval gate.
+- [x] Every design-spec section maps to a task above.
+- [x] Backend full suite passes with zero real IBM calls from tests.
+- [x] Frontend full suite, lint and production build pass.
+- [x] `/healthz` remains shallow and exact.
+- [x] `/readyz` depends only on PostgreSQL.
+- [x] `/system-status` contains only allowlisted public fields.
+- [x] Manual refresh does not invoke LLM, WXO runs or COS writes.
+- [x] Three Agents are checked by registration plus recent execution evidence, not by test execution.
+- [x] OpenLLMetry failure does not change capability or overall status.
+- [x] Desktop and mobile both expose `/status`.
+- [x] User-flow notifications appear only for actionable limited/unavailable states.
+- [x] Existing Loan form, PDF, presets, retry, application list and log viewer behavior remain intact.
+- [x] No runtime database, logs or secrets are committed.
+- [x] Public OpenShift deployment remains behind a separate explicit approval gate.
