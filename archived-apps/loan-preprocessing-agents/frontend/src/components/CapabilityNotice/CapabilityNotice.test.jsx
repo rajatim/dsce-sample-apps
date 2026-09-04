@@ -35,12 +35,12 @@ describe('CapabilityNotice', () => {
 
   it('shows only the highest-impact notice', () => {
     setCapabilities([
-      { id: 'submit_application', status: 'limited', message: 'Submission may be delayed.' },
-      { id: 'process_documents', status: 'unavailable', message: 'Document processing is unavailable.' },
+      { id: 'submit_application', status: 'limited', message: 'untrusted limited copy' },
+      { id: 'process_documents', status: 'unavailable', message: 'untrusted unavailable copy' },
     ]);
     render(<CapabilityNotice capabilityIds={['submit_application', 'process_documents']} />);
-    expect(screen.getByText('Document processing is unavailable.')).toBeVisible();
-    expect(screen.queryByText('Submission may be delayed.')).not.toBeInTheDocument();
+    expect(screen.getByText('Document processing is currently unavailable.')).toBeVisible();
+    expect(screen.queryByText('untrusted limited copy')).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveAttribute('data-kind', 'error');
   });
 
@@ -65,10 +65,19 @@ describe('CapabilityNotice', () => {
   });
 
   it('links to the demo status page and falls back to safe copy', () => {
-    setCapabilities([{ id: 'process_documents', status: 'unavailable', message: 'https://internal.example/raw-id' }]);
+    setCapabilities([{ id: 'process_documents', status: 'unavailable', message: 'PostgreSQL connection refused at 10.0.0.9' }]);
     render(<CapabilityNotice capabilityIds={['process_documents']} />);
     expect(screen.getByText('Document processing is currently unavailable.')).toBeVisible();
     expect(screen.getByRole('link', { name: 'View demo status' })).toHaveAttribute('href', '/status');
-    expect(screen.queryByText(/internal\.example|raw-id/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PostgreSQL|10\.0\.0\.9/)).not.toBeInTheDocument();
+  });
+
+  it('suppresses notices when the relative checked label has become stale', () => {
+    setCapabilities(
+      [{ id: 'submit_application', status: 'unavailable', message: 'Do not display this.' }],
+      { checkedAtLabel: 'Status data is out of date' },
+    );
+    const { container } = render(<CapabilityNotice capabilityIds={['submit_application']} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

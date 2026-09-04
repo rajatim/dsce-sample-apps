@@ -10,12 +10,24 @@ vi.mock('../../services/api', () => ({
   authFetch: authFetchMock,
 }));
 
+const { useSystemStatusMock } = vi.hoisted(() => ({ useSystemStatusMock: vi.fn() }));
 vi.mock('../../contexts/useSystemStatus', () => ({
-  useSystemStatus: () => ({
-    status: { capabilities: [] },
-    isLoading: false,
-  }),
+  useSystemStatus: useSystemStatusMock,
 }));
+
+vi.mock('../CapabilityNotice/CapabilityNotice', () => ({ default: ({ capabilityIds }) => (
+  <div data-testid="capability-notice" data-capability-ids={capabilityIds.join(',')} />
+)}));
+
+/* The notice is mocked at this integration boundary so the page contract and DOM placement are explicit. */
+const defaultStatus = {
+  status: { capabilities: [] },
+  isLoading: false,
+};
+
+beforeEach(() => {
+  useSystemStatusMock.mockReturnValue(defaultStatus);
+});
 
 vi.mock('@carbon/react/icons', () => ({
   User: () => null,
@@ -99,6 +111,15 @@ describe('LoanApplication POC presets', () => {
       }
       throw new Error(`Unexpected request: ${url}`);
     });
+  });
+
+  it('requests all Apply capabilities and places the notice after the heading', () => {
+    render(<LoanApplication />);
+    const heading = screen.getByRole('heading', { name: 'Choose Your Application Method' });
+    const notice = screen.getByTestId('capability-notice');
+    expect(notice).toHaveAttribute('data-capability-ids', 'submit_application,process_documents,generate_decision');
+    expect(heading.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.compareDocumentPosition(screen.getByText('Fill Application Form')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('loads the Pass form preset, jumps to review, and submits its scenario', async () => {

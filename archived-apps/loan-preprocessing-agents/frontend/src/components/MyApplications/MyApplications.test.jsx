@@ -10,12 +10,9 @@ vi.mock('../../services/api', () => ({
   authFetch: authFetchMock,
 }));
 
-vi.mock('../../contexts/useSystemStatus', () => ({
-  useSystemStatus: () => ({
-    status: { capabilities: [] },
-    isLoading: false,
-  }),
-}));
+vi.mock('../CapabilityNotice/CapabilityNotice', () => ({ default: ({ capabilityIds }) => (
+  <div data-testid="capability-notice" data-capability-ids={capabilityIds.join(',')} />
+)}));
 
 vi.mock('../../contexts/PanelContext', async () => {
   const ReactModule = await import('react');
@@ -91,6 +88,15 @@ describe('MyApplications live statuses', () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:8000');
+  });
+
+  it('requests only view applications and places the notice after heading before loading', () => {
+    render(<MyApplications />);
+    const heading = screen.getByRole('heading', { name: 'My Applications' });
+    const notice = screen.getByTestId('capability-notice');
+    expect(notice).toHaveAttribute('data-capability-ids', 'view_applications');
+    expect(heading.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.compareDocumentPosition(screen.getByRole('status')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('refreshes active applications and stops after they reach a final status', async () => {

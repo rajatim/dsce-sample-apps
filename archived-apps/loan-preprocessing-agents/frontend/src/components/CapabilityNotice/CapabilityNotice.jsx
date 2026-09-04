@@ -5,10 +5,26 @@ import { useSystemStatus } from '../../contexts/useSystemStatus';
 const SEVERITY = { limited: 1, not_configured: 2, unavailable: 3 };
 
 const SAFE_COPY = {
-  submit_application: 'Submission is currently unavailable.',
-  process_documents: 'Document processing is currently unavailable.',
-  generate_decision: 'Loan decisions are currently unavailable.',
-  view_applications: 'Application history is currently unavailable.',
+  submit_application: {
+    limited: 'Submission may be delayed.',
+    not_configured: 'Submission is not configured for this demo.',
+    unavailable: 'Submission is currently unavailable.',
+  },
+  process_documents: {
+    limited: 'Document processing may be delayed.',
+    not_configured: 'Document processing is not configured for this demo.',
+    unavailable: 'Document processing is currently unavailable.',
+  },
+  generate_decision: {
+    limited: 'Loan decisions may be delayed.',
+    not_configured: 'Loan decisions are not configured for this demo.',
+    unavailable: 'Loan decisions are currently unavailable.',
+  },
+  view_applications: {
+    limited: 'Application history may be delayed.',
+    not_configured: 'Application history is not configured for this demo.',
+    unavailable: 'Application history is currently unavailable.',
+  },
 };
 
 const CAPABILITY_LABELS = {
@@ -18,14 +34,10 @@ const CAPABILITY_LABELS = {
   view_applications: 'View applications',
 };
 
-const isSafeMessage = (message) => typeof message === 'string'
-  && message.length <= 240
-  && !/[\r\n]|https?:\/\/|www\.|\b(?:id|url|endpoint|api|token|trace|request)[-_ ]?(?:id|url)?\b/i.test(message);
-
 const CapabilityNotice = ({ capabilityIds = [] }) => {
-  const { status, isLoading } = useSystemStatus();
+  const { status, isLoading, checkedAtLabel } = useSystemStatus();
 
-  if (isLoading || !status || status.stale) return null;
+  if (isLoading || !status || status.stale || checkedAtLabel === 'Status data is out of date') return null;
 
   const requested = status.capabilities?.filter((capability) => capabilityIds.includes(capability.id)) || [];
   const actionable = requested
@@ -36,9 +48,8 @@ const CapabilityNotice = ({ capabilityIds = [] }) => {
 
   const kind = capability.status === 'limited' ? 'warning' : 'error';
   const label = CAPABILITY_LABELS[capability.id] || 'This demo capability';
-  const subtitle = isSafeMessage(capability.message)
-    ? capability.message
-    : SAFE_COPY[capability.id] || `${label} is currently unavailable.`;
+  const subtitle = SAFE_COPY[capability.id]?.[capability.status]
+    || `${label} may be affected.`;
 
   return (
     <InlineNotification
