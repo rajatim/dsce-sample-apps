@@ -10,6 +10,13 @@ vi.mock('../../services/api', () => ({
   authFetch: authFetchMock,
 }));
 
+vi.mock('../../contexts/useSystemStatus', () => ({
+  useSystemStatus: () => ({
+    status: { capabilities: [] },
+    isLoading: false,
+  }),
+}));
+
 vi.mock('../../contexts/PanelContext', async () => {
   const ReactModule = await import('react');
   return {

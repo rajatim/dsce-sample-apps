@@ -24,6 +24,7 @@ import {
 import { User, Settings, Help, DocumentPdf, Document } from '@carbon/react/icons';
 import { authFetch } from '../../services/api';
 import { buildApiUrl } from '../../services/apiBaseUrl';
+import CapabilityNotice from '../CapabilityNotice/CapabilityNotice';
 
 // Import the new CSS file
 import './LoanApplication.css';
@@ -451,6 +452,7 @@ const LoanApplication = () => {
     <div className="form-step-container centered-content">
       <div className="text-center">
         <Heading>Choose Your Application Method</Heading>
+        <CapabilityNotice capabilityIds={['submit_application', 'process_documents', 'generate_decision']} />
         <p className="page-subtitle">Select how you'd like to submit your loan application</p>
       </div>
       
@@ -806,6 +808,7 @@ const LoanApplication = () => {
             <div className="page-header">
               <div>
                 <Heading>Loan Application</Heading>
+                <CapabilityNotice capabilityIds={['submit_application', 'process_documents', 'generate_decision']} />
                 <p className="page-subtitle">
                   {applicationMode === 'form' 
                     ? 'Complete the form below to apply for your loan' 

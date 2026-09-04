@@ -17,6 +17,7 @@ import { authFetch } from '../../services/api';
 import { buildApiUrl } from '../../services/apiBaseUrl';
 import PanelContext from '../../contexts/PanelContext';
 import LogViewer from '../LogViewer/LogViewer';
+import CapabilityNotice from '../CapabilityNotice/CapabilityNotice';
 
 // Define the headers for our table
 const headers = [
@@ -153,32 +154,24 @@ const MyApplications = () => {
     };
   }, [applications, fetchApplications]);
 
-  if (isLoading) {
-    return (
-      <div className="loading-container">
-        <Loading description="Loading applications..." withOverlay={false} />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <InlineNotification
-        kind="error"
-        title="Failed to load applications"
-        subtitle={error || 'Please try again later.'}
-      />
-    );
-  }
-
   return (
     <div className="applications-container">
       <h1 className="applications-header">My Applications</h1>
+      <CapabilityNotice capabilityIds={['view_applications']} />
       <p>Here is a list of your submitted loan applications.</p>
       <p className="applications-subtitle">You can hover on a row and click to see the detailed steps followed by agents.</p>
       <p className="applications-scroll-hint">Swipe sideways to view status, details, and submitted date.</p>
-      
-      <DataTable rows={applications} headers={headers}>
+      {isLoading ? (
+        <div className="loading-container">
+          <Loading description="Loading applications..." withOverlay={false} />
+        </div>
+      ) : error ? (
+        <InlineNotification
+          kind="error"
+          title="Failed to load applications"
+          subtitle={error || 'Please try again later.'}
+        />
+      ) : <DataTable rows={applications} headers={headers}>
         {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
           <TableContainer>
             <Table {...getTableProps()}>
@@ -229,7 +222,7 @@ const MyApplications = () => {
             </Table>
           </TableContainer>
         )}
-      </DataTable>
+      </DataTable>}
     </div>
   );
 };

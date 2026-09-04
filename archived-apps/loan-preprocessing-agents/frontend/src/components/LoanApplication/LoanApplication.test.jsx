@@ -10,6 +10,13 @@ vi.mock('../../services/api', () => ({
   authFetch: authFetchMock,
 }));
 
+vi.mock('../../contexts/useSystemStatus', () => ({
+  useSystemStatus: () => ({
+    status: { capabilities: [] },
+    isLoading: false,
+  }),
+}));
+
 vi.mock('@carbon/react/icons', () => ({
   User: () => null,
   Settings: () => null,
