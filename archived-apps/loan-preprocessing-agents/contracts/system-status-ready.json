@@ -1,0 +1,37 @@
+{
+  "overall": {
+    "status": "ready",
+    "title": "Demo ready",
+    "message": "You can submit and review loan applications."
+  },
+  "checked_at": "2026-09-04T10:20:30Z",
+  "stale_after_seconds": 90,
+  "stale": false,
+  "capabilities": [
+    {
+      "id": "submit_application",
+      "label": "Submit an application",
+      "status": "ready",
+      "message": "Online form and PDF upload are available."
+    },
+    {
+      "id": "process_documents",
+      "label": "Process documents",
+      "status": "ready",
+      "message": "Uploaded documents can be extracted and validated."
+    },
+    {
+      "id": "generate_decision",
+      "label": "Generate a loan decision",
+      "status": "ready",
+      "message": "Agent processing is available. Results may take 2–4 minutes."
+    },
+    {
+      "id": "view_applications",
+      "label": "View applications",
+      "status": "ready",
+      "message": "Application history and processing details are available."
+    }
+  ],
+  "dependencies": []
+}

@@ -170,7 +170,8 @@ purposes:
 - `GET /readyz` is readiness for traffic. It executes only PostgreSQL
   `SELECT 1`; failure returns HTTP 503 with a fixed, sanitized body. Use it for
   the OpenShift readiness probe. COS, watsonx.ai, WXO, and OpenLLMetry do not
-  affect this endpoint.
+  affect this endpoint. The probe waits at most three seconds for the status
+  database check.
 - `GET /system-status` is a public, sanitized status document for the frontend
   `/status` page. Its schema contains only fixed capability and dependency
   fields; it never returns credentials, provider endpoints or identifiers,
@@ -182,10 +183,22 @@ budget. Concurrent callers share one refresh. A manual refresh is still
 subject to the cooldown and performs no model inference, WXO thread or run,
 Agent execution, or COS write.
 
+Status and readiness database reads use a separate, non-pooled connection path
+with a one-second connection timeout and a two-second PostgreSQL statement
+timeout; the business database pool and workflow semantics are unchanged. COS
+status metadata uses a status-only client with a one-second connection timeout,
+a two-second read timeout, and no retries. The other status HTTP reads use
+two-second connection and three-second read timeouts with transport retries
+disabled. A fixed six-worker status pool retains at most one in-flight job per
+dependency (including the bounded local-history read), so a timed-out job is
+not submitted again while it is still running.
+
 After an ephemeral IAM token exchange where required, the IBM service checks
 are low-cost and read-only: COS `HEAD Bucket`, watsonx.ai project metadata
 `GET`, and WXO registered-agents `GET`. WXO registration is the live check for
-the three Agents. The page may also show informational, timestamp-only local
+the three Agents. Both IBM Cloud IAM and the existing AWS SaaS IAM token
+contract are supported for this read-only check. The page may also show
+informational, timestamp-only local
 history derived from a bounded scan of the newest 500 Agent events. That
 history has no freshness window or guarantee. Local timestamp history does not
 establish or guarantee current Agent availability, and its timestamps never

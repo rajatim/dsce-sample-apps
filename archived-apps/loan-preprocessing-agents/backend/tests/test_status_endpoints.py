@@ -1,3 +1,5 @@
+import threading
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -81,6 +83,13 @@ class StatusEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_status_activity_uses_the_bounded_status_database_path(self):
+        with patch.object(main, "get_recent_agent_activity", return_value={}) as loader:
+            result = main.system_status_service._activity_loader()
+
+        self.assertEqual(result, {})
+        loader.assert_called_once_with(main.status_database_session_factory)
+
     def test_readyz_returns_ready_after_only_select_one(self):
         session = StrictReadinessSession()
 
@@ -103,6 +112,35 @@ class StatusEndpointTests(unittest.TestCase):
         self.assertEqual(response.json(), {"status": "not_ready"})
         self.assertNotIn("private", response.text)
         self.assertEqual(session.statements, ["SELECT 1"])
+
+    def test_readyz_has_bounded_latency_and_reuses_a_lingering_database_check(self):
+        release = threading.Event()
+        calls = 0
+
+        def blocked_database_check(checked_at):
+            nonlocal calls
+            calls += 1
+            release.wait(timeout=2)
+            return check_postgresql(lambda: StrictReadinessSession(), checked_at)
+
+        service = SystemStatusService(
+            dependency_checks={"postgresql": blocked_database_check},
+            readiness_budget_seconds=0.03,
+        )
+        started = time.monotonic()
+        try:
+            with patch.object(main, "system_status_service", service):
+                first = self.client.get("/readyz")
+                second = self.client.get("/readyz")
+        finally:
+            release.set()
+            if hasattr(service, "close"):
+                service.close()
+
+        self.assertLess(time.monotonic() - started, 0.3)
+        self.assertEqual(first.status_code, 503)
+        self.assertEqual(second.status_code, 503)
+        self.assertEqual(calls, 1)
 
     def test_system_status_is_public_and_matches_the_response_contract(self):
         safe_service = SystemStatusService(

@@ -1,23 +1,22 @@
 import unittest
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 from status_models import EvidenceKind, StatusValue
-from services.status_checks import (
-    check_cos,
-    check_openllmetry,
-    check_postgresql,
-    check_watsonx,
-    check_wxo,
-)
+from services import status_checks
+from services.status_checks import check_cos, check_openllmetry, check_postgresql, check_watsonx, check_wxo
 from utils.cos_client import COSClient
 
 
 CHECKED_AT = datetime(2026, 9, 4, 8, 30, tzinfo=timezone.utc)
 IAM_URL = "https://iam.cloud.ibm.com/identity/token"
+AWS_IAM_URL = "https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token"
 IAM_DATA = {
     "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
     "apikey": "test-api-key",
@@ -129,6 +128,39 @@ def cos_client_with(sdk):
 
 
 class DependencyCheckTests(unittest.TestCase):
+    def test_status_postgresql_factory_has_dedicated_connection_and_query_deadlines(self):
+        engine = object()
+        factory = object()
+        with (
+            patch.object(status_checks, "create_engine", return_value=engine) as create,
+            patch.object(status_checks, "sessionmaker", return_value=factory) as sessions,
+        ):
+            result = status_checks.build_status_session_factory(
+                "postgresql+psycopg://status-user:status-password@127.0.0.1/status-db"
+            )
+
+        self.assertIs(result, factory)
+        create.assert_called_once_with(
+            "postgresql+psycopg://status-user:status-password@127.0.0.1/status-db",
+            poolclass=NullPool,
+            connect_args={
+                "connect_timeout": 1,
+                "options": "-c statement_timeout=2000",
+            },
+        )
+        sessions.assert_called_once_with(
+            autocommit=False,
+            autoflush=False,
+            bind=engine,
+        )
+
+    def test_status_http_client_disables_transport_retries(self):
+        http = status_checks.build_status_http_client()
+        self.addCleanup(http.close)
+
+        self.assertEqual(http.adapters["https://"].max_retries.total, 0)
+        self.assertEqual(http.adapters["http://"].max_retries.total, 0)
+
     def test_sqlite_fallback_is_not_a_verified_postgresql_dependency(self):
         engine = create_engine("sqlite://")
         statements = []
@@ -472,6 +504,49 @@ class DependencyCheckTests(unittest.TestCase):
 
         check_wxo(environment, http, CHECKED_AT)
 
+        http.assert_exhausted()
+
+    def test_wxo_aws_uses_saas_json_token_contract_then_reads_registered_agents(self):
+        environment = self._wxo_environment(
+            WXO_INSTANCE_ID="aws-instance-id",
+            WXO_INSTANCE_CLOUD="aws",
+        )
+        root = "https://api.dl.watson-orchestrate.ibm.com/instances/aws-instance-id"
+        http = StrictHttp(
+            [
+                (
+                    "POST",
+                    AWS_IAM_URL,
+                    {
+                        "headers": {
+                            "accept": "application/json",
+                            "content-type": "application/json",
+                        },
+                        "data": json.dumps({"apikey": "wxo-api-key"}),
+                        "timeout": (2, 3),
+                    },
+                    FakeResponse(200, {"token": "private-aws-token"}),
+                ),
+                (
+                    "GET",
+                    f"{root}/v2/orchestrate/agents",
+                    {
+                        "headers": {"Authorization": "Bearer private-aws-token"},
+                        "params": [("ids", agent_id) for agent_id in AGENT_IDS],
+                        "timeout": (2, 3),
+                    },
+                    FakeResponse(200, {"agents": [{"id": item} for item in AGENT_IDS]}),
+                ),
+            ]
+        )
+
+        results = check_wxo(environment, http, CHECKED_AT)
+
+        self.assertTrue(all(item.status is StatusValue.READY for item in results))
+        self.assertNotIn(
+            "private-aws-token",
+            "".join(item.model_dump_json() for item in results),
+        )
         http.assert_exhausted()
 
     def test_wxo_resolves_software_instance_root(self):

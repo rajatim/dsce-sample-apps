@@ -10,7 +10,6 @@ import yaml
 import shutil
 import uvicorn
 import uuid
-import requests
 from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -31,6 +30,8 @@ from repositories.application_records import (
 from repositories.agent_events import list_events
 from repositories.status_activity import get_recent_agent_activity
 from services.status_checks import (
+    build_status_http_client,
+    build_status_session_factory,
     check_cos,
     check_openllmetry,
     check_postgresql,
@@ -68,6 +69,11 @@ def get_image_client():
 def get_cos_client():
     return COSClient()
 
+
+@lru_cache(maxsize=1)
+def get_status_cos_client():
+    return COSClient.for_status_check()
+
 # --- CORS Configuration ---
 app.add_middleware(
     CORSMiddleware,
@@ -79,25 +85,35 @@ app.add_middleware(
 initialize_observability(app)
 
 COS_BUCKET_NAME = os.getenv("COS_BUCKET_NAME", "loan-processing-bucket")
+status_database_session_factory = build_status_session_factory(
+    database.resolve_database_url()
+)
+status_http_client = build_status_http_client()
 system_status_service = SystemStatusService(
     dependency_checks={
         "postgresql": lambda checked_at: check_postgresql(
-            database.SessionLocal, checked_at
+            status_database_session_factory, checked_at
         ),
         "cos": lambda checked_at: check_cos(
-            get_cos_client, COS_BUCKET_NAME, checked_at
+            get_status_cos_client, COS_BUCKET_NAME, checked_at
         ),
         "watsonx_ai": lambda checked_at: check_watsonx(
-            os.environ, requests, checked_at
+            os.environ, status_http_client, checked_at
         ),
-        "wxo": lambda checked_at: check_wxo(os.environ, requests, checked_at),
+        "wxo": lambda checked_at: check_wxo(
+            os.environ,
+            status_http_client,
+            checked_at,
+        ),
         "openllmetry": lambda checked_at: check_openllmetry(
             os.environ,
             getattr(app.state, "openllmetry_initialized", False),
             checked_at,
         ),
     },
-    activity_loader=lambda: get_recent_agent_activity(),
+    activity_loader=lambda: get_recent_agent_activity(
+        status_database_session_factory
+    ),
 )
 
 

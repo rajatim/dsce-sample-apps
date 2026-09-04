@@ -5,15 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 const { useSystemStatusMock } = vi.hoisted(() => ({ useSystemStatusMock: vi.fn() }));
 
 vi.mock('../../contexts/useSystemStatus', () => ({ useSystemStatus: useSystemStatusMock }));
-vi.mock('@carbon/react', () => ({
-  InlineNotification: ({ kind, title, subtitle, children }) => (
-    <div role="alert" data-kind={kind}>
-      <span>{title}</span>
-      <span>{subtitle}</span>
-      {children}
-    </div>
-  ),
-}));
 
 import CapabilityNotice from './CapabilityNotice';
 
@@ -41,17 +32,17 @@ describe('CapabilityNotice', () => {
     render(<CapabilityNotice capabilityIds={['submit_application', 'process_documents']} />);
     expect(screen.getByText('Document processing is currently unavailable.')).toBeVisible();
     expect(screen.queryByText('untrusted limited copy')).not.toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveAttribute('data-kind', 'error');
+    expect(screen.getByRole('status').className).toContain('--inline-notification--error');
   });
 
   it('uses warning for limited and error for not configured', () => {
     setCapabilities([{ id: 'submit_application', status: 'not_configured', message: 'Submission is not configured.' }]);
     const { rerender } = render(<CapabilityNotice capabilityIds={['submit_application']} />);
-    expect(screen.getByRole('alert')).toHaveAttribute('data-kind', 'error');
+    expect(screen.getByRole('status').className).toContain('--inline-notification--error');
 
     setCapabilities([{ id: 'submit_application', status: 'limited', message: 'Submission may be delayed.' }]);
     rerender(<CapabilityNotice capabilityIds={['submit_application']} />);
-    expect(screen.getByRole('alert')).toHaveAttribute('data-kind', 'warning');
+    expect(screen.getByRole('status').className).toContain('--inline-notification--warning');
   });
 
   it.each([
@@ -68,14 +59,17 @@ describe('CapabilityNotice', () => {
     setCapabilities([{ id: 'process_documents', status: 'unavailable', message: 'PostgreSQL connection refused at 10.0.0.9' }]);
     render(<CapabilityNotice capabilityIds={['process_documents']} />);
     expect(screen.getByText('Document processing is currently unavailable.')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'View demo status' })).toHaveAttribute('href', '/status');
+    const notification = screen.getByRole('status');
+    const link = screen.getByRole('link', { name: 'View demo status' });
+    expect(link).toHaveAttribute('href', '/status');
+    expect(notification).not.toContainElement(link);
     expect(screen.queryByText(/PostgreSQL|10\.0\.0\.9/)).not.toBeInTheDocument();
   });
 
   it('suppresses notices when the relative checked label has become stale', () => {
     setCapabilities(
       [{ id: 'submit_application', status: 'unavailable', message: 'Do not display this.' }],
-      { checkedAtLabel: 'Status data is out of date' },
+      { isStale: true },
     );
     const { container } = render(<CapabilityNotice capabilityIds={['submit_application']} />);
     expect(container).toBeEmptyDOMElement();

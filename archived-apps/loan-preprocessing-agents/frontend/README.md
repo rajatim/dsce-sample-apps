@@ -29,7 +29,7 @@ This is the frontend for the Financial LoanHub application, a modern web platfor
 
 ### Prerequisites
 
--   [Node.js](https://nodejs.org/) (version 16.x or later recommended)
+-   [Node.js](https://nodejs.org/) (`^20.19.0 || >=22.12.0`)
 -   [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
 -   A running instance of the [backend server]
 

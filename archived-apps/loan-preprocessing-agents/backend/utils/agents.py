@@ -1,6 +1,7 @@
 from typing import Callable, List, Optional, Sequence, Union
 import os
 import json
+import logging
 import time
 import requests
 from langchain_core.output_parsers import JsonOutputParser
@@ -42,6 +43,7 @@ RETRYABLE_AGENT_MESSAGES = (
     "error calling the tool",
 )
 EMPTY_VALIDATOR_MESSAGE = "llm has responded with empty message. please try again"
+LOGGER = logging.getLogger(__name__)
 
 
 class TransientAgentError(RuntimeError):
@@ -70,6 +72,33 @@ def _is_complete_validator_result(result) -> bool:
 def log_to_db(application_id: str, stage: str, data: dict):
     """Persist an agent log using the SQL event repository."""
     append_event(application_id, stage, data)
+
+
+def _record_agent_failure(
+    application_id: Optional[str],
+    *,
+    attempt: int,
+    failure_kind: str,
+    terminal: bool,
+) -> None:
+    """Persist fixed operational evidence without changing workflow outcomes."""
+    if not application_id:
+        return
+    try:
+        log_to_db(
+            application_id,
+            "agent_failure",
+            {
+                "attempt": attempt,
+                "failure_kind": failure_kind,
+                "terminal": terminal,
+            },
+        )
+    except Exception as error:
+        LOGGER.warning(
+            "Agent failure observability event could not be persisted (%s)",
+            type(error).__name__,
+        )
 
 def get_bearer_token(API_KEY) -> str:
     """Obtain bearer token from API key"""
@@ -241,7 +270,14 @@ def get_response(
                 application_id=application_id,
             )
         except retryable_errors as error:
-            if attempt == MAX_AGENT_ATTEMPTS:
+            terminal = attempt == MAX_AGENT_ATTEMPTS
+            _record_agent_failure(
+                application_id,
+                attempt=attempt,
+                failure_kind="retryable",
+                terminal=terminal,
+            )
+            if terminal:
                 raise
             next_attempt = attempt + 1
             if application_id:
@@ -256,6 +292,14 @@ def get_response(
             if on_retry:
                 on_retry(next_attempt, error)
             time.sleep(attempt)
+        except Exception:
+            _record_agent_failure(
+                application_id,
+                attempt=attempt,
+                failure_kind="terminal",
+                terminal=True,
+            )
+            raise
 
 
 def _document_list(document_names: Union[str, Sequence[str]]) -> List[str]:

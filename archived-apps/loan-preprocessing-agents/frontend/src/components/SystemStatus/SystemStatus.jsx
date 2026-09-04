@@ -34,6 +34,11 @@ const DEPENDENCIES = [
   ['final_decision_agent', 'Final Decision Agent'],
   ['openllmetry', 'OpenLLMetry'],
 ];
+const AGENT_DEPENDENCY_IDS = new Set([
+  'document_processing_agent',
+  'document_validation_agent',
+  'final_decision_agent',
+]);
 
 const STATUS_PRESENTATION = {
   ready: { label: 'Ready', tag: 'green', Icon: CheckmarkFilled },
@@ -71,13 +76,13 @@ const StatusMark = ({ status, large = false }) => {
   );
 };
 
-const capabilityItems = (status) => CAPABILITIES.map(([id, label, fallbackMessage]) => {
+const capabilityItems = (status, isStale) => CAPABILITIES.map(([id, label, fallbackMessage]) => {
   const capability = status?.capabilities.find((item) => item.id === id);
   return {
     id,
     label,
-    status: capability?.status || 'unknown',
-    message: capability?.message || fallbackMessage,
+    status: isStale ? 'unknown' : capability?.status || 'unknown',
+    message: isStale ? fallbackMessage : capability?.message || fallbackMessage,
   };
 });
 
@@ -87,8 +92,18 @@ const dependencyItems = (status) => DEPENDENCIES.flatMap(([id, label]) => {
 });
 
 const dependencyTiming = (dependency) => {
-  if (dependency.last_success_at) {
-    return `Last successful run ${formatTimestamp(dependency.last_success_at)}`;
+  if (AGENT_DEPENDENCY_IDS.has(dependency.id)) {
+    const lastSuccess = Date.parse(dependency.last_success_at);
+    const lastFailure = Date.parse(dependency.last_failure_at);
+    const hasSuccess = Number.isFinite(lastSuccess);
+    const hasFailure = Number.isFinite(lastFailure);
+    if (hasFailure && (!hasSuccess || lastFailure >= lastSuccess)) {
+      return `Last failed run ${formatTimestamp(dependency.last_failure_at)}`;
+    }
+    if (hasSuccess) {
+      return `Last successful run ${formatTimestamp(dependency.last_success_at)}`;
+    }
+    return 'No recent run';
   }
   if (dependency.checked_at) {
     return `Checked at ${formatTimestamp(dependency.checked_at)}`;
@@ -105,13 +120,20 @@ const SystemStatus = () => {
     error,
     refresh,
     checkedAtLabel,
+    isStale,
   } = useSystemStatus();
-  const [refreshAnnouncement, setRefreshAnnouncement] = useState('');
+  const [refreshAnnouncement, setRefreshAnnouncement] = useState({
+    message: '',
+    sequence: 0,
+  });
   const previousRefreshing = useRef(isRefreshing);
 
   useEffect(() => {
     if (previousRefreshing.current && !isRefreshing && !error && status) {
-      setRefreshAnnouncement(`Demo status refreshed. ${status.overall.title}.`);
+      setRefreshAnnouncement((current) => ({
+        message: `Demo status refreshed. ${status.overall.title}.`,
+        sequence: current.sequence + 1,
+      }));
     }
     previousRefreshing.current = isRefreshing;
   }, [error, isRefreshing, status]);
@@ -125,16 +147,15 @@ const SystemStatus = () => {
   };
 
   const hasStatus = Boolean(status);
-  const shownOverall = error
+  const shownOverall = error || isStale
     ? {
         status: 'unknown',
         title: 'Status unavailable',
         message: 'We could not check the demo status. You may still try the demo.',
-      }
+    }
     : status?.overall;
-  const capabilities = hasStatus ? capabilityItems(status) : [];
+  const capabilities = hasStatus ? capabilityItems(status, isStale) : [];
   const dependencies = hasStatus ? dependencyItems(status) : [];
-  const isStale = Boolean(status?.stale || checkedAtLabel === 'Status data is out of date');
 
   return (
     <div className="system-status-page">
@@ -262,7 +283,9 @@ const SystemStatus = () => {
       </section>
 
       <span className="system-status-sr-only" aria-live="polite" aria-atomic="true">
-        {refreshAnnouncement}
+        {refreshAnnouncement.message && (
+          <span key={refreshAnnouncement.sequence}>{refreshAnnouncement.message}</span>
+        )}
       </span>
     </div>
   );

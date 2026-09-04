@@ -22,21 +22,36 @@ CAPABILITY_DEPENDENCIES = {
 }
 
 CAPABILITY_LABELS = {
-    "submit_application": "Submit application",
+    "submit_application": "Submit an application",
     "process_documents": "Process documents",
-    "generate_decision": "Generate decision",
+    "generate_decision": "Generate a loan decision",
     "view_applications": "View applications",
 }
 
-_READY_MESSAGE = "Available"
 _LIMITED_MESSAGE = "Some required dependencies need attention"
 _UNAVAILABLE_MESSAGE = "One or more required dependencies are unavailable"
+_READY_MESSAGES = {
+    "submit_application": "Online form and PDF upload are available.",
+    "process_documents": "Uploaded documents can be extracted and validated.",
+    "generate_decision": (
+        "Agent processing is available. Results may take 2–4 minutes."
+    ),
+    "view_applications": (
+        "Application history and processing details are available."
+    ),
+}
 _OVERALL_COPY = {
-    StatusValue.READY: ("System ready", "All capabilities are available"),
-    StatusValue.LIMITED: ("System limited", "Some capabilities need attention"),
+    StatusValue.READY: (
+        "Demo ready",
+        "You can submit and review loan applications.",
+    ),
+    StatusValue.LIMITED: (
+        "Some demo features are limited",
+        "Check the details below before continuing.",
+    ),
     StatusValue.UNAVAILABLE: (
-        "System unavailable",
-        "Core application capabilities are unavailable",
+        "The demo is currently unavailable",
+        "Please try again later.",
     ),
 }
 
@@ -65,7 +80,7 @@ def build_capabilities(
     for capability_id in CAPABILITY_DEPENDENCIES:
         status = _capability_status(capability_id, dependencies)
         message = {
-            StatusValue.READY: _READY_MESSAGE,
+            StatusValue.READY: _READY_MESSAGES[capability_id],
             StatusValue.LIMITED: _LIMITED_MESSAGE,
             StatusValue.UNAVAILABLE: _UNAVAILABLE_MESSAGE,
         }[status]

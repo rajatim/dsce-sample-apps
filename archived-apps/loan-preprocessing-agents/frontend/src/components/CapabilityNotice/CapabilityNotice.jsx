@@ -35,9 +35,9 @@ const CAPABILITY_LABELS = {
 };
 
 const CapabilityNotice = ({ capabilityIds = [] }) => {
-  const { status, isLoading, checkedAtLabel } = useSystemStatus();
+  const { status, isLoading, isStale } = useSystemStatus();
 
-  if (isLoading || !status || status.stale || checkedAtLabel === 'Status data is out of date') return null;
+  if (isLoading || !status || status.stale || isStale) return null;
 
   const requested = status.capabilities?.filter((capability) => capabilityIds.includes(capability.id)) || [];
   const actionable = requested
@@ -52,14 +52,15 @@ const CapabilityNotice = ({ capabilityIds = [] }) => {
     || `${label} may be affected.`;
 
   return (
-    <InlineNotification
-      kind={kind}
-      title={`${label} may be affected`}
-      subtitle={subtitle}
-      hideCloseButton
-    >
+    <>
+      <InlineNotification
+        kind={kind}
+        title={`${label} may be affected`}
+        subtitle={subtitle}
+        hideCloseButton
+      />
       <a href="/status">View demo status</a>
-    </InlineNotification>
+    </>
   );
 };
 

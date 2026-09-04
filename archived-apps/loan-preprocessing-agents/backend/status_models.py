@@ -21,7 +21,7 @@ class EvidenceKind(StrEnum):
 
 
 class PublicStatusModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class DependencyStatus(PublicStatusModel):
@@ -53,5 +53,5 @@ class SystemStatusResponse(PublicStatusModel):
     checked_at: datetime
     stale_after_seconds: int
     stale: bool = False
-    capabilities: list[CapabilityStatus]
-    dependencies: list[DependencyStatus]
+    capabilities: tuple[CapabilityStatus, ...]
+    dependencies: tuple[DependencyStatus, ...]

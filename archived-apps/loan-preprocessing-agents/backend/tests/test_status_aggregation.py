@@ -1,5 +1,7 @@
+import json
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 
 from status_models import (
     DependencyStatus,
@@ -8,6 +10,15 @@ from status_models import (
     SystemStatusResponse,
 )
 from services.status_aggregation import build_capabilities, build_overall
+
+
+READY_CONTRACT = json.loads(
+    (
+        Path(__file__).parents[2]
+        / "contracts"
+        / "system-status-ready.json"
+    ).read_text(encoding="utf-8")
+)
 
 
 def dependency(name: str, status: StatusValue) -> DependencyStatus:
@@ -36,6 +47,79 @@ def ready_dependencies() -> dict[str, DependencyStatus]:
 
 
 class StatusAggregationTests(unittest.TestCase):
+    def test_ready_copy_matches_the_approved_demo_contract(self):
+        capabilities = build_capabilities(ready_dependencies())
+        by_id = {item.id: item for item in capabilities}
+
+        self.assertEqual(
+            (by_id["submit_application"].label, by_id["submit_application"].message),
+            (
+                "Submit an application",
+                "Online form and PDF upload are available.",
+            ),
+        )
+        self.assertEqual(
+            by_id["process_documents"].message,
+            "Uploaded documents can be extracted and validated.",
+        )
+        self.assertEqual(
+            by_id["generate_decision"].message,
+            "Agent processing is available. Results may take 2–4 minutes.",
+        )
+        self.assertEqual(
+            by_id["view_applications"].message,
+            "Application history and processing details are available.",
+        )
+
+        overall = build_overall(capabilities)
+        self.assertEqual(overall.title, "Demo ready")
+        self.assertEqual(
+            overall.message,
+            "You can submit and review loan applications.",
+        )
+        self.assertEqual(
+            {
+                "overall": overall.model_dump(mode="json"),
+                "capabilities": [
+                    capability.model_dump(mode="json")
+                    for capability in capabilities
+                ],
+            },
+            {
+                "overall": READY_CONTRACT["overall"],
+                "capabilities": READY_CONTRACT["capabilities"],
+            },
+        )
+
+    def test_limited_and_unavailable_overall_copy_matches_the_approved_demo_contract(self):
+        limited_dependencies = ready_dependencies()
+        limited_dependencies["wxo"] = dependency("wxo", StatusValue.LIMITED)
+        limited = build_overall(build_capabilities(limited_dependencies))
+
+        unavailable_dependencies = ready_dependencies()
+        unavailable_dependencies["loan_api"] = dependency(
+            "loan_api", StatusValue.UNAVAILABLE
+        )
+        unavailable_dependencies["postgresql"] = dependency(
+            "postgresql", StatusValue.UNAVAILABLE
+        )
+        unavailable = build_overall(build_capabilities(unavailable_dependencies))
+
+        self.assertEqual(
+            (limited.title, limited.message),
+            (
+                "Some demo features are limited",
+                "Check the details below before continuing.",
+            ),
+        )
+        self.assertEqual(
+            (unavailable.title, unavailable.message),
+            (
+                "The demo is currently unavailable",
+                "Please try again later.",
+            ),
+        )
+
     def test_wxo_outage_limits_processing_but_keeps_history_ready(self):
         dependencies = ready_dependencies()
         dependencies["wxo"] = dependency("wxo", StatusValue.UNAVAILABLE)

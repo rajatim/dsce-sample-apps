@@ -16,13 +16,22 @@ const payload = {
 
 const Probe = ({ onRender }) => {
   onRender?.();
-  const { status, isLoading, isRefreshing, error, refresh, checkedAtLabel } = useSystemStatus();
+  const {
+    status,
+    isLoading,
+    isRefreshing,
+    error,
+    refresh,
+    checkedAtLabel,
+    isStale,
+  } = useSystemStatus();
   return <div>
     <span data-testid="loading">{String(isLoading)}</span>
     <span data-testid="refreshing">{String(isRefreshing)}</span>
     <span data-testid="status">{status?.overall.status || 'none'}</span>
     <span data-testid="error">{error || ''}</span>
     <span data-testid="label">{checkedAtLabel}</span>
+    <span data-testid="stale">{String(isStale)}</span>
     <button type="button" onClick={refresh}>Refresh</button>
   </div>;
 };
@@ -96,5 +105,58 @@ describe('SystemStatusProvider', () => {
     expect(screen.getByTestId('label').textContent).not.toBe(initialLabel);
     expect(fetchSystemStatusMock).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('label')).not.toHaveAttribute('aria-live');
+  });
+
+  it('treats a future server timestamp as stale at receipt', async () => {
+    let wallNow = Date.parse('2026-09-05T10:00:00Z');
+    let monotonicNow = 5000;
+    fetchSystemStatusMock.mockResolvedValue({
+      ...payload,
+      checked_at: '2026-09-05T10:00:01Z',
+      stale_after_seconds: 90,
+    });
+
+    render(
+      <SystemStatusProvider
+        wallClock={() => wallNow}
+        monotonicClock={() => monotonicNow}
+      >
+        <Probe />
+      </SystemStatusProvider>,
+    );
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+    expect(screen.getByTestId('stale')).toHaveTextContent('true');
+    expect(screen.getByTestId('label')).toHaveTextContent('Status data is out of date');
+    wallNow += 1000;
+    monotonicNow += 1000;
+  });
+
+  it('uses receipt monotonic elapsed time when the wall clock rolls backward', async () => {
+    let wallNow = Date.parse('2026-09-05T10:00:30Z');
+    let monotonicNow = 10_000;
+    fetchSystemStatusMock.mockResolvedValue({
+      ...payload,
+      checked_at: '2026-09-05T10:00:00Z',
+      stale_after_seconds: 90,
+    });
+
+    render(
+      <SystemStatusProvider
+        wallClock={() => wallNow}
+        monotonicClock={() => monotonicNow}
+      >
+        <Probe />
+      </SystemStatusProvider>,
+    );
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(screen.getByTestId('stale')).toHaveTextContent('false');
+
+    wallNow -= 86_400_000;
+    monotonicNow += 61_000;
+    act(() => vi.advanceTimersByTime(30_000));
+
+    expect(screen.getByTestId('stale')).toHaveTextContent('true');
+    expect(screen.getByTestId('label')).toHaveTextContent('Status data is out of date');
   });
 });

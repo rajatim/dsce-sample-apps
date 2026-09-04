@@ -1,11 +1,16 @@
 """Low-cost, read-only checks for the Loan demo's external dependencies."""
 
+import json
 import logging
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Callable
 
-from sqlalchemy import text
+import requests
+from requests.adapters import HTTPAdapter
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 from status_models import DependencyStatus, EvidenceKind, StatusValue
 
@@ -14,6 +19,9 @@ LOGGER = logging.getLogger(__name__)
 HTTP_TIMEOUT = (2, 3)
 IAM_TOKEN_URL = "https://iam.cloud.ibm.com/identity/token"
 IAM_TOKEN_GRANT = "urn:ibm:params:oauth:grant-type:apikey"
+AWS_IAM_TOKEN_URL = (
+    "https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token"
+)
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 _LABELS = {
@@ -35,6 +43,32 @@ _WXO_AGENTS = (
 
 class _HTTPStatusFailure(RuntimeError):
     """Internal marker that deliberately carries no provider response content."""
+
+
+def build_status_http_client() -> requests.Session:
+    """Create a status-only HTTP client with explicitly disabled retries."""
+    client = requests.Session()
+    adapter = HTTPAdapter(max_retries=0)
+    client.mount("https://", adapter)
+    client.mount("http://", adapter)
+    return client
+
+
+def build_status_session_factory(database_url: str):
+    """Build a status-only database path without changing the business pool."""
+    if database_url.startswith("sqlite:"):
+        connect_args = {"check_same_thread": False}
+    else:
+        connect_args = {
+            "connect_timeout": 1,
+            "options": "-c statement_timeout=2000",
+        }
+    engine = create_engine(
+        database_url,
+        poolclass=NullPool,
+        connect_args=connect_args,
+    )
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def _dependency(
@@ -75,6 +109,30 @@ def _access_token(http: Any, api_key: str) -> str:
     if not isinstance(token, str) or not token:
         raise _HTTPStatusFailure()
     return token
+
+
+def _wxo_access_token(
+    http: Any,
+    api_key: str,
+    instance_cloud: str,
+) -> str:
+    if instance_cloud == "aws":
+        response = http.post(
+            AWS_IAM_TOKEN_URL,
+            headers={
+                "accept": "application/json",
+                "content-type": "application/json",
+            },
+            data=json.dumps({"apikey": api_key}),
+            timeout=HTTP_TIMEOUT,
+        )
+        if response.status_code != 200:
+            raise _HTTPStatusFailure()
+        token = response.json().get("token")
+        if not isinstance(token, str) or not token:
+            raise _HTTPStatusFailure()
+        return token
+    return _access_token(http, api_key)
 
 
 def check_postgresql(
@@ -208,7 +266,9 @@ def _wxo_root(environment: Mapping[str, str]) -> str:
     if service_instance_url:
         return service_instance_url.rstrip("/")
     instance_id = _value(environment, "WXO_INSTANCE_ID")
-    instance_cloud = _value(environment, "WXO_INSTANCE_CLOUD") or "ibmcloud"
+    instance_cloud = (
+        _value(environment, "WXO_INSTANCE_CLOUD") or "ibmcloud"
+    ).lower()
     if instance_cloud == "ibmcloud":
         region = _value(environment, "WXO_INSTANCE_CLOUD_REGION") or "us-south"
         return (
@@ -317,7 +377,10 @@ def check_wxo(
 
     root = _wxo_root(environment)
     try:
-        token = _access_token(http, api_key)
+        instance_cloud = (
+            _value(environment, "WXO_INSTANCE_CLOUD") or "ibmcloud"
+        ).lower()
+        token = _wxo_access_token(http, api_key, instance_cloud)
         response = http.get(
             f"{root}/v2/orchestrate/agents",
             headers={"Authorization": f"Bearer {token}"},

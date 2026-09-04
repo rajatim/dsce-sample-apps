@@ -55,17 +55,19 @@ def get_recent_agent_activity(
         message = _message(event.payload)
         if event.stage == "invoke_agent":
             agent_key = _INVOCATION_MARKERS.get(message)
-            if agent_key is not None:
-                current_agents[event.external_application_id] = agent_key
-                activity.setdefault(agent_key, AgentActivity(agent_key=agent_key))
-        elif event.stage == "agent_response" and message:
+            if agent_key is None:
+                current_agents.pop(event.external_application_id, None)
+                continue
+            current_agents[event.external_application_id] = agent_key
+            activity.setdefault(agent_key, AgentActivity(agent_key=agent_key))
+        elif event.stage in ("agent_response", "agent_failure"):
             agent_key = current_agents.get(event.external_application_id)
             if agent_key is None:
                 continue
             current = activity.setdefault(agent_key, AgentActivity(agent_key=agent_key))
-            if _is_failure(message):
+            if event.stage == "agent_failure" or (message and _is_failure(message)):
                 activity[agent_key] = replace(current, last_failure_at=event.occurred_at)
-            else:
+            elif message:
                 activity[agent_key] = replace(current, last_success_at=event.occurred_at)
 
     return activity

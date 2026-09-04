@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import readyContract from '../../../../contracts/system-status-ready.json';
 
 const { useSystemStatusMock } = vi.hoisted(() => ({ useSystemStatusMock: vi.fn() }));
 
@@ -11,40 +12,13 @@ vi.mock('../../contexts/useSystemStatus', () => ({
 import SystemStatus from './SystemStatus';
 
 const readyStatus = {
-  overall: {
-    status: 'ready',
-    title: 'Demo ready',
-    message: 'You can submit and review loan applications.',
-  },
-  checked_at: '2026-09-04T10:20:30Z',
-  stale_after_seconds: 90,
-  stale: false,
+  ...readyContract,
   capabilities: [
-    {
-      id: 'submit_application',
-      label: 'Submit an application',
-      status: 'ready',
-      message: 'Online form and PDF upload are available.',
-      endpoint: 'https://internal.example.test/submit',
-    },
-    {
-      id: 'process_documents',
-      label: 'Process documents',
-      status: 'ready',
-      message: 'Uploaded documents can be extracted and validated.',
-    },
-    {
-      id: 'generate_decision',
-      label: 'Generate a loan decision',
-      status: 'ready',
-      message: 'Agent processing is available. Results may take 2–4 minutes.',
-    },
-    {
-      id: 'view_applications',
-      label: 'View applications',
-      status: 'ready',
-      message: 'Application history and processing details are available.',
-    },
+    ...readyContract.capabilities.map((capability) => (
+      capability.id === 'submit_application'
+        ? { ...capability, endpoint: 'https://internal.example.test/submit' }
+        : capability
+    )),
     {
       id: 'internal_debug_capability',
       label: 'Internal debug capability',
@@ -84,6 +58,7 @@ const contextValue = (overrides = {}) => ({
   error: '',
   refresh: vi.fn().mockResolvedValue(readyStatus),
   checkedAtLabel: 'Checked just now',
+  isStale: false,
   ...overrides,
 });
 
@@ -105,6 +80,17 @@ describe('SystemStatus', () => {
     expect(screen.queryByText('submit_application')).not.toBeInTheDocument();
     expect(screen.queryByText('Internal debug capability')).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('https://internal.example.test');
+  });
+
+  it('renders the approved aggregator copy without substituting generic system copy', () => {
+    render(<SystemStatus />);
+
+    expect(screen.getByRole('heading', { name: 'Demo ready' })).toBeVisible();
+    expect(screen.getByText('You can submit and review loan applications.')).toBeVisible();
+    expect(screen.getByText('Online form and PDF upload are available.')).toBeVisible();
+    expect(screen.getByText('Uploaded documents can be extracted and validated.')).toBeVisible();
+    expect(screen.getByText('Agent processing is available. Results may take 2–4 minutes.')).toBeVisible();
+    expect(screen.getByText('Application history and processing details are available.')).toBeVisible();
   });
 
   it('pairs every capability status word with a visible status icon', () => {
@@ -159,10 +145,21 @@ describe('SystemStatus', () => {
     value.isRefreshing = false;
     rerender(<SystemStatus />);
 
-    expect(screen.getByText('Demo status refreshed. Demo ready.')).toHaveAttribute(
+    const liveRegion = screen
+      .getByText('Demo status refreshed. Demo ready.')
+      .closest('[aria-live="polite"]');
+    expect(liveRegion).toHaveAttribute(
       'aria-live',
       'polite'
     );
+
+    const firstAnnouncementNode = liveRegion.firstChild;
+    value.isRefreshing = true;
+    rerender(<SystemStatus />);
+    value.isRefreshing = false;
+    rerender(<SystemStatus />);
+
+    expect(liveRegion.firstChild).not.toBe(firstAnnouncementNode);
   });
 
   it('shows a safe unavailable state with a Retry action', () => {
@@ -186,6 +183,7 @@ describe('SystemStatus', () => {
     useSystemStatusMock.mockReturnValue(contextValue({
       status: { ...readyStatus, stale: true },
       checkedAtLabel: 'Status data is out of date',
+      isStale: true,
     }));
 
     render(<SystemStatus />);
@@ -193,6 +191,58 @@ describe('SystemStatus', () => {
     expect(screen.getByText('Status data is out of date')).toBeVisible();
     expect(screen.getByText(/Refresh before relying on these results/)).toBeVisible();
     expect(screen.getByText('Status data is out of date')).not.toHaveAttribute('aria-live');
+
+    expect(screen.getByRole('heading', { name: 'Status unavailable' })).toBeVisible();
+    const capabilities = screen.getByRole('list', { name: 'Demo capabilities' });
+    expect(within(capabilities).queryByText('Ready')).not.toBeInTheDocument();
+    expect(within(capabilities).getAllByText('Status unavailable')).toHaveLength(4);
+  });
+
+  it('shows latest fixed-agent success or failure and no recent run ahead of checked_at', () => {
+    useSystemStatusMock.mockReturnValue(contextValue({
+      status: {
+        ...readyStatus,
+        dependencies: [
+          {
+            id: 'document_processing_agent',
+            status: 'ready',
+            evidence: 'live_check',
+            message: 'Agent is registered.',
+            checked_at: '2026-09-05T10:00:00Z',
+            last_success_at: '2026-09-05T08:00:00Z',
+            last_failure_at: '2026-09-05T09:00:00Z',
+          },
+          {
+            id: 'document_validation_agent',
+            status: 'ready',
+            evidence: 'live_check',
+            message: 'Agent is registered.',
+            checked_at: '2026-09-05T10:00:00Z',
+            last_success_at: null,
+            last_failure_at: null,
+          },
+          {
+            id: 'final_decision_agent',
+            status: 'ready',
+            evidence: 'live_check',
+            message: 'Agent is registered.',
+            checked_at: '2026-09-05T10:00:00Z',
+            last_success_at: '2026-09-05T09:30:00Z',
+            last_failure_at: '2026-09-05T09:00:00Z',
+          },
+        ],
+      },
+    }));
+    render(<SystemStatus />);
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+
+    const processor = screen.getByRole('listitem', { name: /Document Processing Agent/ });
+    const validator = screen.getByRole('listitem', { name: /Document Validation Agent/ });
+    const decision = screen.getByRole('listitem', { name: /Final Decision Agent/ });
+    expect(within(processor).getByText(/^Last failed run /)).toBeVisible();
+    expect(within(validator).getByText('No recent run')).toBeVisible();
+    expect(within(decision).getByText(/^Last successful run /)).toBeVisible();
+    expect(within(validator).queryByText(/^Checked at /)).not.toBeInTheDocument();
   });
 
   it('states that OpenLLMetry does not affect demo availability', () => {

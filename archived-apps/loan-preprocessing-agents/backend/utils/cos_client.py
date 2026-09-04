@@ -27,7 +27,8 @@ class COSClient:
         self,
         cos_endpoint: Optional[str] = None,
         cos_api_key_id: Optional[str] = None,
-        cos_instance_crn: Optional[str] = None
+        cos_instance_crn: Optional[str] = None,
+        client_config: Optional[Config] = None,
     ) -> None:
         """
         Initializes the COSClient with IBM Cloud Object Storage credentials and endpoint details.
@@ -60,8 +61,32 @@ class COSClient:
             "s3",
             ibm_api_key_id=cos_api_key_id,
             ibm_service_instance_id=cos_instance_crn,
-            config=Config(signature_version="oauth", max_pool_connections=50),
+            config=client_config or Config(
+                signature_version="oauth",
+                max_pool_connections=50,
+            ),
             endpoint_url=cos_endpoint
+        )
+
+    @classmethod
+    def for_status_check(
+        cls,
+        cos_endpoint: Optional[str] = None,
+        cos_api_key_id: Optional[str] = None,
+        cos_instance_crn: Optional[str] = None,
+    ) -> "COSClient":
+        """Build the read-only status client with short, non-retrying I/O."""
+        return cls(
+            cos_endpoint=cos_endpoint,
+            cos_api_key_id=cos_api_key_id,
+            cos_instance_crn=cos_instance_crn,
+            client_config=Config(
+                signature_version="oauth",
+                max_pool_connections=2,
+                connect_timeout=1,
+                read_timeout=2,
+                retries={"max_attempts": 0, "mode": "standard"},
+            ),
         )
 
     def head_bucket(self, bucket_name: str) -> None:
