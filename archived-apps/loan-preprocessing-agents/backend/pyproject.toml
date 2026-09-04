@@ -10,6 +10,7 @@ dependencies = [
     "ibm-cos-sdk>=2.14.3",
     "langchain>=0.3.27",
     "langchain-ibm>=0.3.15",
+    "opentelemetry-instrumentation-fastapi==0.65b0",
     "pandas>=2.2.3",
     "passlib[bcrypt]>=1.7.4",
     "pdf2image>=1.17.0",
@@ -20,5 +21,6 @@ dependencies = [
     "sqlalchemy>=2.0.41",
     "tinydb>=4.8.2",
     "tqdm>=4.67.1",
+    "traceloop-sdk==0.62.3",
     "uvicorn>=0.35.0",
 ]

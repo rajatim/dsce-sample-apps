@@ -1,68 +1,236 @@
-# Financial LoanHub - Backend
+# Financial LoanHub backend
 
-This is the backend API for the Financial LoanHub application. It is built with FastAPI and provides a secure, robust foundation for handling user authentication, loan applications, and data management.
+This FastAPI service provides demo login, loan submission, IBM Cloud Object
+Storage (COS) uploads, watsonx Orchestrate agent processing, and PostgreSQL
+persistence through SQLAlchemy. SQLite remains a temporary local rollback path;
+PostgreSQL is selected whenever `DATABASE_URL` is present.
 
-## Features
+## Install
 
--   **User Authentication:** Secure registration and login endpoints using JWT (JSON Web Tokens) and OAuth2 password flow.
--   **Password Security:** Passwords are never stored in plain text. They are securely hashed using `bcrypt`.
--   **Protected Endpoints:** API routes for application management are protected and require a valid JWT bearer token.
--   **Database Integration:** Uses SQLAlchemy to interact with a database (SQLite for development). The models are easily adaptable to production databases like PostgreSQL.
--   **Data Validation:** Leverages Pydantic for robust request and response data validation, ensuring data integrity.
--   **File Upload Handling:** Securely handles multipart form data for uploading application documents and saves them to the server.
--   **CORS Enabled:** Configured with Cross-Origin Resource Sharing (CORS) to allow requests from the frontend application.
--   **Organized Structure:** Code is organized into modules for database, models, schemas, and security for better maintainability.
+The project requires Python 3.13 and [`uv`](https://docs.astral.sh/uv/).
 
-## Tech Stack
+```bash
+uv sync --locked
+```
 
--   **Framework:** [FastAPI](https://fastapi.tiangolo.com/)
--   **Database ORM:** [SQLAlchemy](https://www.sqlalchemy.org/)
--   **Authentication:** [python-jose](https://github.com/mpdavis/python-jose) for JWT, [passlib](https://passlib.readthedocs.io/en/stable/) with `bcrypt` for password hashing.
--   **Data Validation:** [Pydantic](https://pydantic-docs.helpmanual.io/)
--   **Server:** [Uvicorn](https://www.uvicorn.org/)
--   **Language:** Python 3.8+
+Do not commit `.env` files, database credentials, API keys, tokens, or rendered
+connection URLs.
 
----
+## Required environment variables
 
-## Getting Started
+Set values in the process environment. The application does not require IBM
+credentials merely to import or serve OpenAPI, but the corresponding workflow
+needs all of its variables before it is invoked.
 
-### Prerequisites
+- Database runtime: `DATABASE_URL`
+- Demo seed: `DEMO_USERNAME`, `DEMO_PASSWORD`, `DEMO_FIRST_NAME`,
+  `DEMO_LAST_NAME`, `DEMO_DATE_OF_BIRTH`
+- Local database bootstrap: `LOAN_DB_PASSWORD`; optional overrides are
+  `PG_ADMIN_DSN`, `LOAN_DB_NAME`, and `LOAN_DB_USER`
+- COS: `COS_ENDPOINT`, `COS_API_KEY_ID`, `COS_INSTANCE_CRN`, `COS_BUCKET_NAME`
+- watsonx extraction: `WATSONX_APIKEY`, `WATSONX_PROJECT_ID`, `WATSONX_URL`
+- watsonx Orchestrate: `WXO_API_KEY`, `WXO_INSTANCE_ID`,
+  `WXO_SERVICE_INSTANCE_URL`, `DOC_PROCESSOR_AGENT_ID`,
+  `DOCUMENT_VALIDATION_AGENT_ID`, and `FINAL_DECISION_AGENT_ID`
+- Optional watsonx Orchestrate location overrides: `WXO_INSTANCE_CLOUD` and
+  `WXO_INSTANCE_CLOUD_REGION`
+- Optional OpenLLMetry tracing: `OPENLLMETRY_ENABLED`, `TRACELOOP_BASE_URL`,
+  `OTEL_SERVICE_NAME`, `OTEL_DEPLOYMENT_ENVIRONMENT`, and `APP_VERSION`
 
--   [Python](https://www.python.org/) (version 3.8 or later)
--   `pip` (Python package installer)
+`DATABASE_URL` must use SQLAlchemy's psycopg form:
 
-### Installation
+```text
+postgresql+psycopg://<user>:<password>@<host>:5432/<database>
+```
 
-1.  **Clone the repository:**
+For the local POC, keep the password in macOS Keychain under a dedicated
+service/account and retrieve it directly into a short-lived shell variable:
 
-2.  **Install Dependencies (using uv):**
+```bash
+LOAN_DB_PASSWORD="$(security find-generic-password \
+  -s dsce-loan-postgres-local -a loan_app_dev -w)"
+export LOAN_DB_PASSWORD
+```
 
-    - [Install uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it.
+Build `DATABASE_URL` with `sqlalchemy.URL.create()` so reserved password
+characters are escaped correctly. Capture the rendered value directly into the
+environment; do not echo it or place it in a file. Unset `LOAN_DB_PASSWORD`
+after constructing the URL.
 
-    - Create a virtual environment and install dependencies:
+## Local PostgreSQL 17
 
-    ```bash
-    uv sync --locked
-    ```
+Install and manage only the versioned Homebrew service:
 
-3. **Setup Environment Variables:**
+```bash
+brew install postgresql@17
+brew services start postgresql@17
+/opt/homebrew/opt/postgresql@17/bin/pg_isready -h 127.0.0.1 -p 5432
+brew services stop postgresql@17
+```
 
-   - Create an `.env` file (see [.env_example](./.env_example))
+With `LOAN_DB_PASSWORD` loaded from Keychain, reconcile the local role and
+database, then apply the schema:
 
-3. **Run the API:**
+```bash
+uv run python scripts/bootstrap_local_postgres.py
+uv run alembic upgrade head
+uv run alembic current
+```
 
-    ```bash
-    uv run main.py
-    ```
+Revision `0001` is the expected current revision.
 
-### Configuration
+## Import the protected legacy snapshot
 
-The JWT secret key should be configured for security.
+Always point the importer at backup-protected SQLite and TinyDB source files.
+Omitting `--apply` is a dry run and writes nothing:
 
-1.  Open the `security.py` file.
-2.  Find the `SECRET_KEY` variable.
-3.  Replace the placeholder key with a strong, randomly generated key. You can generate one using OpenSSL:
-    ```bash
-    openssl rand -hex 32
-    ```
-    **Do not commit your production secret key to a public repository.** Use environment variables for production deployments.
+```bash
+uv run python scripts/migrate_legacy_data.py \
+  --sqlite "$LEGACY_SQLITE_PATH" \
+  --logs "$LEGACY_LOGS_PATH" \
+  --database-url "$DATABASE_URL"
+
+uv run python scripts/migrate_legacy_data.py \
+  --sqlite "$LEGACY_SQLITE_PATH" \
+  --logs "$LEGACY_LOGS_PATH" \
+  --database-url "$DATABASE_URL" \
+  --apply
+```
+
+The migrated legacy baseline is:
+
+- 1 user
+- 10 applications: 2 `passed`, 3 `rejected`, and 5 `Processing Failed`
+- 325 agent events
+- 1 migration anomaly
+- 18 orphan agent events
+- 0 application documents and 0 processing runs
+
+The 18 orphan events all refer to the same missing legacy application. They are
+preserved with a nullable application foreign key, while the missing
+application is represented by one deduplicated anomaly. Therefore the correct
+acceptance result is 18 orphan events and 1 anomaly, not 1 orphan event.
+
+Running `--apply` again must insert zero rows. Verify only aggregate values; do
+not print customer rows, event payloads, hashes, or credentials:
+
+```bash
+LOAN_DB_PASSWORD="$(security find-generic-password \
+  -s dsce-loan-postgres-local -a loan_app_dev -w)"
+PGPASSWORD="$LOAN_DB_PASSWORD" \
+  /opt/homebrew/opt/postgresql@17/bin/psql \
+  -h 127.0.0.1 -p 5432 -U loan_app_dev -d loan_poc_dev \
+  -c "SELECT
+        (SELECT count(*) FROM users) AS users,
+        (SELECT count(*) FROM applications) AS applications,
+        (SELECT count(*) FROM application_documents) AS documents,
+        (SELECT count(*) FROM processing_runs) AS processing_runs,
+        (SELECT count(*) FROM agent_events) AS events,
+        (SELECT count(*) FROM migration_anomalies) AS anomalies,
+        (SELECT count(*) FROM agent_events WHERE application_id IS NULL)
+          AS orphan_events;"
+unset LOAN_DB_PASSWORD
+```
+
+## Preserve the demo login
+
+The seed fails closed unless `DATABASE_URL` and every `DEMO_*` variable above
+is set. It matches by username, creates the user only when absent, and leaves an
+existing password hash and profile unchanged by default:
+
+```bash
+uv run python scripts/seed_demo_user.py
+```
+
+Rotate the existing password only when explicitly intended:
+
+```bash
+uv run python scripts/seed_demo_user.py --rotate-password
+```
+
+The command reports only whether it created a user or rotated a password. It
+does not print the username, password, hash, or database URL.
+
+## Run and verify PostgreSQL mode
+
+```bash
+uv run main.py
+curl --fail http://127.0.0.1:8000/openapi.json >/dev/null
+curl --fail http://127.0.0.1:8000/docs >/dev/null
+```
+
+## OpenLLMetry traces to Instana
+
+OpenLLMetry is disabled by default. In the `itz-pl4yvb` OpenShift cluster, the
+Loan FastAPI Deployment can send OTLP/gRPC traces directly to the existing
+Instana Agent service without a Traceloop Cloud account, API key, extra
+Collector Pod, or PVC:
+
+```text
+OPENLLMETRY_ENABLED=true
+TRACELOOP_BASE_URL=instana-agent.instana-agent:4317
+OTEL_SERVICE_NAME=loan-fastapi
+OTEL_DEPLOYMENT_ENVIRONMENT=poc
+APP_VERSION=<image tag or git SHA>
+```
+
+The endpoint has no URL scheme intentionally; OpenLLMetry treats that form as
+insecure OTLP/gRPC inside the cluster. Never configure `TRACELOOP_API_KEY` for
+this direct Instana path.
+
+The application enforces the following privacy and scope controls whenever
+OpenLLMetry is enabled:
+
+- `TRACELOOP_TRACE_CONTENT=false`: do not record prompts, completions,
+  embeddings, document contents, or extracted loan fields.
+- `TRACELOOP_METRICS_ENABLED=false` and `TRACELOOP_LOGGING_ENABLED=false`: emit
+  traces only; use the existing Instana Agent for infrastructure telemetry.
+- `TRACELOOP_TELEMETRY=false`: defensively disable SDK telemetry.
+- `/token`, `/docs`, and `/openapi.json` are excluded from FastAPI request
+  tracing.
+
+If tracing initialization or FastAPI instrumentation fails, the backend logs a
+sanitized warning and continues serving the Loan workflow. If
+`OPENLLMETRY_ENABLED=true` but `TRACELOOP_BASE_URL` is absent, tracing fails
+closed instead of falling back to Traceloop Cloud.
+
+OpenLLMetry can trace the local Loan workflow, outbound WXO HTTP requests,
+SQLAlchemy, LangChain, and local watsonx SDK calls. It cannot reveal the
+internal steps of remotely hosted WXO agents unless that remote runtime also
+exports compatible traces.
+
+For the guarded local integration suite, use the same loopback-only URL without
+query parameters:
+
+```bash
+TEST_DATABASE_URL="$DATABASE_URL" \
+  uv run python -m unittest tests.test_postgres_integration -v
+```
+
+## SQLite rollback switch
+
+Until OpenShift cutover is separately approved, retain the untracked local
+`loan_app.db` and `logs.json` files. To smoke-test or temporarily select the
+untouched SQLite source:
+
+1. Gracefully stop the FastAPI process.
+2. Run `unset DATABASE_URL` in the launch shell while retaining any IBM service
+   variables needed by the application.
+3. Start `uv run main.py` and confirm `/openapi.json` responds with HTTP 200.
+4. Do not submit or retry applications in rollback mode.
+5. Stop FastAPI, restore the PostgreSQL `DATABASE_URL`, and start it again.
+
+The fallback resolves to `sqlite:///./loan_app.db`. Check protected snapshot
+checksums before and after a rollback smoke test.
+
+## OpenShift handoff
+
+OpenShift must supply `DATABASE_URL` from a Secret using the
+`postgresql+psycopg://` format shown above. PDF and image bytes remain in COS
+(or the existing local filesystem rollback copy); PostgreSQL stores only
+application state, document metadata, processing runs, events, and anomalies.
+
+Creating an OCP Shared PostgreSQL service, namespace, cluster, storage,
+backups, database roles, and project Secret is explicitly deferred outside
+this local cutover plan. Do not modify existing WXO, Zen, Instana, Tekton, or
+PostgreSQL resources as part of this procedure.

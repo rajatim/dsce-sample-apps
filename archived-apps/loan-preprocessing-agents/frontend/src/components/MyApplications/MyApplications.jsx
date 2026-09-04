@@ -14,6 +14,7 @@ import {
 } from '@carbon/react';
 import './MyApplications.css';
 import { authFetch } from '../../services/api';
+import { buildApiUrl } from '../../services/apiBaseUrl';
 import PanelContext from '../../contexts/PanelContext';
 import LogViewer from '../LogViewer/LogViewer';
 
@@ -86,8 +87,7 @@ const MyApplications = () => {
     }
     const request = (async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL;
-        const response = await authFetch(`${apiUrl}/list_applications`);
+        const response = await authFetch(buildApiUrl('/list_applications'));
         if (!response.ok) {
           throw new Error('Failed to fetch applications.');
         }

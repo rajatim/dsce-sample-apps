@@ -23,6 +23,7 @@ import {
 } from '@carbon/react';
 import { User, Settings, Help, DocumentPdf, Document } from '@carbon/react/icons';
 import { authFetch } from '../../services/api';
+import { buildApiUrl } from '../../services/apiBaseUrl';
 
 // Import the new CSS file
 import './LoanApplication.css';
@@ -164,9 +165,8 @@ const LoanApplication = () => {
   useEffect(() => {
     const prefillRequestId = demoRequestIdRef.current;
     const fetchUserData = async () => {
-      const apiUrl = import.meta.env.VITE_API_URL;
       try {
-        const response = await authFetch(`${apiUrl}/users/me`);
+        const response = await authFetch(buildApiUrl('/users/me'));
         if (!response.ok) {
           throw new Error("Could not fetch user data.");
         }
@@ -215,14 +215,13 @@ const LoanApplication = () => {
     const selectedMode = applicationMode;
     setLoadingDemoScenario(scenario);
     setDemoPresetError(null);
-    const apiUrl = import.meta.env.VITE_API_URL;
     const fileKeys = selectedMode === 'pdf'
       ? ['applicationPdf', 'idProof', 'incomeProof', 'addressProof', 'ssn']
       : ['idProof', 'incomeProof', 'addressProof', 'ssn'];
 
     try {
       const fixtureEntries = await Promise.all(fileKeys.map(async (fileKey) => {
-        const response = await authFetch(`${apiUrl}/demo_fixtures/${scenario}/${fileKey}`);
+        const response = await authFetch(buildApiUrl(`/demo_fixtures/${scenario}/${fileKey}`));
         if (!response.ok) {
           throw new Error(`Could not load ${fileKey}.`);
         }
@@ -370,15 +369,13 @@ const LoanApplication = () => {
 
     const data = new FormData();
     let endpoint = '';
-    const apiUrl = import.meta.env.VITE_API_URL;
-
     try {
         if (demoScenario) {
             data.append('demoScenario', demoScenario);
         }
         // 2. Build the FormData object based on the application mode
         if (applicationMode === 'form') {
-            endpoint = `${apiUrl}/submit_form`;
+            endpoint = buildApiUrl('/submit_form');
             
             // Append the form field data as a single JSON string
             data.append('formDataJson', JSON.stringify(formData));
@@ -402,7 +399,7 @@ const LoanApplication = () => {
             // -------------------------------------------------------------
 
         } else if (applicationMode === 'pdf') {
-            endpoint = `${apiUrl}/submit_pdf_form`;
+            endpoint = buildApiUrl('/submit_pdf_form');
 
             // --- THIS IS THE COMPLETED FILE APPENDING LOGIC FOR 'PDF' MODE ---
             if (uploadedFiles.applicationPdf) {

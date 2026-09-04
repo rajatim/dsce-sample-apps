@@ -1,87 +1,29 @@
 # syntax=docker/dockerfile:1.6
 
-############################
-# 1) Build stage
-############################
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
-# Optional: better Alpine compat for some native deps
-RUN apk add --no-cache libc6-compat
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
-# Copy only manifests first to maximize layer caching
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
-
-# Allow build-time API URL injection for Vite (picked up at `npm run build`)
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
-
-# Install deps using the right package manager
-# - yarn.lock  -> yarn install --frozen-lockfile
-# - package-lock.json -> npm ci
-# - otherwise -> npm install
-RUN corepack enable || true && \
-    if [ -f yarn.lock ]; then \
-        yarn install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then \
-        npm ci; \
-    else \
-        npm install; \
-    fi
-
-# Copy the rest of the source and build
 COPY . .
-RUN if [ -f yarn.lock ]; then \
-        yarn build; \
-    else \
-        npm run build; \
-    fi
+RUN npm run build
 
-
-############################
-# 2) Runtime stage (Nginx)
-############################
 FROM nginx:1.27-alpine AS runtime
 
-# Remove default site and add an SPA-friendly config with caching
-RUN rm -f /etc/nginx/conf.d/default.conf
-RUN <<'NGINXCONF' cat > /etc/nginx/conf.d/default.conf
-server {
-  listen 80;
-  server_name _;
-
-  root /usr/share/nginx/html;
-  index index.html;
-
-  # Gzip for text assets
-  gzip on;
-  gzip_types text/plain text/css application/javascript application/json image/svg+xml;
-
-  # Single Page App routing: serve index.html for unknown routes
-  location / {
-    try_files $uri $uri/ /index.html;
-  }
-
-  # Cache static assets aggressively
-  location ~* \.(?:js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
-    expires 30d;
-    add_header Cache-Control "public, max-age=2592000" always;
-    try_files $uri =404;
-  }
-
-  # Never cache the HTML shell
-  location = /index.html {
-    add_header Cache-Control "no-store" always;
-  }
-}
-NGINXCONF
-
-# Copy built app
+COPY nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1
+# OpenShift assigns a random non-root UID. Group 0 permissions let that UID
+# read the app and configuration without granting root privileges.
+RUN chgrp -R 0 /etc/nginx /usr/share/nginx/html \
+    && chmod -R g=u /etc/nginx /usr/share/nginx/html
 
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1
+
+ENTRYPOINT []
 CMD ["nginx", "-g", "daemon off;"]

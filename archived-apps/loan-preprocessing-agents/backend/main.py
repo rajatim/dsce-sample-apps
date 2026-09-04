@@ -20,6 +20,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
+from observability import initialize_observability, trace_workflow
 from utils.cos_client import COSClient
 from repositories.application_records import (
     finish_processing_run,
@@ -35,6 +36,11 @@ from utils.kv_extraction import extract_key_value_pairs
 import models, schemas, security, database
 
 app = FastAPI(title="Loan Application API")
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthcheck():
+    return {"status": "ok"}
 
 
 @lru_cache(maxsize=1)
@@ -59,10 +65,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+initialize_observability(app)
 
 COS_BUCKET_NAME = os.getenv("COS_BUCKET_NAME", "loan-processing-bucket")
 # --- File Handling ---
-UPLOAD_DIRECTORY = "./uploads"
+UPLOAD_DIRECTORY = os.getenv("UPLOAD_DIRECTORY", "./uploads")
 ZIP_FILE_PATH = "data/sample_documents.zip"
 DEMO_FIXTURE_FILES = {
     "applicationPdf": ("Loan Application Form.pdf", "Loan-Application-Form.pdf", "application/pdf"),
@@ -224,11 +231,12 @@ def recover_application_inputs(app_id_str: str):
             if os.path.isfile(os.path.join(upload_folder, filename))
         )
 
+    cos_prefix = upload_folder.removeprefix("./")
     source_paths.update(
         _normalize_upload_path(path)
         for path in get_cos_client().get_contents_of_folder_in_bucket(
             COS_BUCKET_NAME,
-            f"{upload_folder}/",
+            f"{cos_prefix}/",
         )
     )
 
@@ -264,6 +272,7 @@ def dict_to_markdown(data, indent=0):
                 md += f"{indent_str}- {item}\n"
     return md
 
+@trace_workflow(name="loan_preprocessing")
 def process_application_in_background(app_id, uploaded_files, application_file_path, db):
     db = database.SessionLocal()
     run_id = None

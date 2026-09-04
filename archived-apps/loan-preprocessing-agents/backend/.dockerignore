@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+__pycache__
+.pytest_cache
+.coverage
+htmlcov
+.env
+.env.*
+*.log
+loan_app.db
+logs.json
+uploads
+tests
+Dockerfile*

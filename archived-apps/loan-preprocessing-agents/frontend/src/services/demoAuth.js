@@ -1,3 +1,5 @@
+import { buildApiUrl } from './apiBaseUrl';
+
 const DEMO_USERNAME = 'tom_miller';
 const DEMO_PASSWORD = 'Pass1234';
 
@@ -12,8 +14,7 @@ export const requestDemoToken = () => {
   formData.append('username', DEMO_USERNAME);
   formData.append('password', DEMO_PASSWORD);
 
-  const apiUrl = import.meta.env.VITE_API_URL;
-  tokenRequest = fetch(`${apiUrl}/token`, {
+  tokenRequest = fetch(buildApiUrl('/token'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData,

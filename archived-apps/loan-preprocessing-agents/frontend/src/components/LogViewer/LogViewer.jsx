@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, InlineNotification, Loading, Tag } from '@carbon/react';
 import { Renew } from '@carbon/react/icons';
 import { authFetch } from '../../services/api';
+import { buildApiUrl } from '../../services/apiBaseUrl';
 import './LogViewer.css';
 
 const AGENT_STEPS = [
@@ -422,10 +423,9 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
 
     const request = (async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL;
         const [applicationResponse, logsResponse] = await Promise.all([
-          authFetch(`${apiUrl}/applications/${resolvedAppId}`),
-          authFetch(`${apiUrl}/get_logs/${resolvedAppId}`),
+          authFetch(buildApiUrl(`/applications/${resolvedAppId}`)),
+          authFetch(buildApiUrl(`/get_logs/${resolvedAppId}`)),
         ]);
         if (!applicationResponse.ok || !logsResponse.ok) {
           throw new Error('Failed to fetch processing details.');
@@ -482,9 +482,8 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
     setIsRetrying(true);
     setActionError('');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
       const response = await authFetch(
-        `${apiUrl}/applications/${resolvedAppId}/retry`,
+        buildApiUrl(`/applications/${resolvedAppId}/retry`),
         { method: 'POST' }
       );
       if (!response.ok) {

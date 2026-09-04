@@ -169,6 +169,39 @@ class ApplicationRetryTest(unittest.TestCase):
         )
         self.assertEqual(application_data, f"{prefix}/application_data.json")
 
+    def test_source_recovery_queries_cos_without_a_dot_path_segment(self):
+        normalized_prefix = "./uploads/pdf_retry_test"
+        cos_prefix = "uploads/pdf_retry_test/"
+        cos_files = [
+            "uploads/pdf_retry_test/idProof-a-passport.png",
+            "uploads/pdf_retry_test/application_data.json",
+        ]
+        cos_client = Mock()
+        cos_client.get_contents_of_folder_in_bucket.side_effect = (
+            lambda bucket_name, prefix: cos_files if prefix == cos_prefix else []
+        )
+
+        with (
+            patch.object(main.os.path, "isdir", return_value=False),
+            patch.object(main, "get_cos_client", return_value=cos_client),
+        ):
+            documents, application_data = main.recover_application_inputs(
+                "pdf_retry_test"
+            )
+
+        cos_client.get_contents_of_folder_in_bucket.assert_called_once_with(
+            main.COS_BUCKET_NAME,
+            cos_prefix,
+        )
+        self.assertEqual(
+            documents,
+            [f"{normalized_prefix}/idProof-a-passport.png"],
+        )
+        self.assertEqual(
+            application_data,
+            f"{normalized_prefix}/application_data.json",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

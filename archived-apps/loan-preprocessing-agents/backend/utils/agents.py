@@ -6,6 +6,7 @@ import requests
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
 from datetime import date, datetime, timezone
+from observability import trace_agent
 from repositories.agent_events import append_event
 
 load_dotenv(override=False)
@@ -458,6 +459,7 @@ def _collect_document_results(
     return results
 
 
+@trace_agent(name="loan_agent_workflow")
 def invoke_agents(
     document_names,
     loan_application_file,

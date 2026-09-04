@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 import models, schemas, database
 
 # --- Configuration ---
-SECRET_KEY = "YOUR_SUPER_SECRET_KEY_CHANGE_THIS" # Run `openssl rand -hex 32` to generate a key
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "YOUR_SUPER_SECRET_KEY_CHANGE_THIS")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

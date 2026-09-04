@@ -3,6 +3,8 @@ import subprocess
 import sys
 import time
 import unittest
+import json
+import tempfile
 from urllib.error import URLError
 from urllib.request import urlopen
 from pathlib import Path
@@ -41,6 +43,50 @@ class StartupTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "Loan Application API")
+
+    def test_health_endpoint_is_available_without_authentication(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from fastapi.testclient import TestClient; "
+                    "from main import app; "
+                    "response = TestClient(app).get('/healthz'); "
+                    "print(response.status_code); print(response.text)"
+                ),
+            ],
+            cwd=BACKEND_DIRECTORY,
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        status_code, body = result.stdout.strip().splitlines()
+        self.assertEqual(status_code, "200")
+        self.assertEqual(json.loads(body), {"status": "ok"})
+
+    def test_upload_directory_can_be_configured_for_a_persistent_volume(self):
+        with tempfile.TemporaryDirectory() as upload_directory:
+            environment = os.environ.copy()
+            environment["UPLOAD_DIRECTORY"] = upload_directory
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import main; print(main.UPLOAD_DIRECTORY)",
+                ],
+                cwd=BACKEND_DIRECTORY,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), upload_directory)
 
     def test_direct_entrypoint_serves_openapi_on_documented_port(self):
         environment = os.environ.copy()
