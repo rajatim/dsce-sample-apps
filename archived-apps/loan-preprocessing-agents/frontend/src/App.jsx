@@ -1,6 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, Link, Navigate } from 'react-router-dom';
-import { Header, HeaderName, HeaderNavigation, HeaderMenuItem } from '@carbon/react';
+import {
+  Header,
+  HeaderMenuButton,
+  HeaderMenuItem,
+  HeaderName,
+  HeaderNavigation,
+  SideNav,
+  SideNavItems,
+  SideNavLink,
+} from '@carbon/react';
 import SidePanel from "./components/SidePanel/SidePanel";
 import PanelContext from './contexts/PanelContext';
 
@@ -14,11 +23,31 @@ import './App.css';
 function App() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [panelContent, setPanelContent] = useState(null);
+  const [isMobileNavExpanded, setIsMobileNavExpanded] = useState(false);
+  const closeMobileNavigation = () => setIsMobileNavExpanded(false);
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsMobileNavExpanded(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
 
   return (
     <PanelContext.Provider value={{ setIsPanelOpen, setPanelContent }}>
     <div className="app-wrapper">
       <Header aria-label="Loan Application Platform">
+        <HeaderMenuButton
+          aria-label={isMobileNavExpanded ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-controls="mobile-navigation"
+          aria-expanded={isMobileNavExpanded}
+          isActive={isMobileNavExpanded}
+          onClick={() => setIsMobileNavExpanded((isExpanded) => !isExpanded)}
+        />
         <HeaderName as={Link} to="/apply" prefix="Financial">
           LoanHub
         </HeaderName>
@@ -27,6 +56,26 @@ function App() {
           <HeaderMenuItem as={Link} to="/my-applications">My Applications</HeaderMenuItem>
           <HeaderMenuItem as={Link} to="/calculator">Loan Calculator</HeaderMenuItem>
         </HeaderNavigation>
+        <SideNav
+          id="mobile-navigation"
+          aria-label="Mobile navigation"
+          expanded={isMobileNavExpanded}
+          isPersistent={false}
+          onOverlayClick={closeMobileNavigation}
+          onSideNavBlur={closeMobileNavigation}
+        >
+          <SideNavItems>
+            <SideNavLink as={Link} to="/apply" onClick={closeMobileNavigation}>
+              Apply
+            </SideNavLink>
+            <SideNavLink as={Link} to="/my-applications" onClick={closeMobileNavigation}>
+              My Applications
+            </SideNavLink>
+            <SideNavLink as={Link} to="/calculator" onClick={closeMobileNavigation}>
+              Loan Calculator
+            </SideNavLink>
+          </SideNavItems>
+        </SideNav>
       </Header>
 
       <main className="page-content">

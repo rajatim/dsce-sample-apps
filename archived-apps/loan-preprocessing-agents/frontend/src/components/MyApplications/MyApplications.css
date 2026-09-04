@@ -44,3 +44,28 @@ ul ul {
   text-decoration: underline;
   text-underline-offset: 0.125rem;
 }
+
+.applications-scroll-hint {
+  display: none;
+}
+
+@media (max-width: 42rem) {
+  .applications-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .applications-subtitle {
+    margin-bottom: 1rem;
+  }
+
+  .applications-scroll-hint {
+    display: block;
+    margin-bottom: 0.75rem;
+    color: #525252;
+    font-size: 0.875rem;
+  }
+
+  .applications-container .cds--data-table-content {
+    overscroll-behavior-inline: contain;
+  }
+}

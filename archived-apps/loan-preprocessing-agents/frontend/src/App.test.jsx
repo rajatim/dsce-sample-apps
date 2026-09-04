@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,7 +7,25 @@ vi.mock('@carbon/react', () => ({
   Header: ({ children }) => <header>{children}</header>,
   HeaderName: (props) => React.createElement(props.as, { to: props.to }, props.children),
   HeaderNavigation: ({ children }) => <nav>{children}</nav>,
-  HeaderMenuItem: (props) => React.createElement(props.as, { to: props.to }, props.children),
+  HeaderMenuItem: ({ as, children, ...props }) => React.createElement(as, props, children),
+  HeaderMenuButton: ({ isActive, ...props }) => (
+    <button {...props} aria-expanded={isActive} />
+  ),
+  SideNav: ({
+    children,
+    expanded,
+    isPersistent,
+    onOverlayClick,
+    onSideNavBlur,
+    ...props
+  }) => {
+    void isPersistent;
+    void onOverlayClick;
+    void onSideNavBlur;
+    return <nav {...props} hidden={!expanded}>{children}</nav>;
+  },
+  SideNavItems: ({ children }) => <ul>{children}</ul>,
+  SideNavLink: ({ as, children, ...props }) => React.createElement(as, props, children),
   HeaderGlobalBar: ({ children }) => <div>{children}</div>,
   HeaderGlobalAction: ({ children, ...props }) => <button {...props}>{children}</button>,
 }));
@@ -51,4 +69,51 @@ describe('App demo-only routes', () => {
       expect(screen.queryByText('Register')).not.toBeInTheDocument();
     }
   );
+
+  it('keeps all primary destinations available from the mobile navigation', async () => {
+    render(
+      <MemoryRouter initialEntries={['/apply']}>
+        <App />
+        <CurrentPath />
+      </MemoryRouter>
+    );
+
+    const menuButton = screen.getByRole('button', { name: 'Open navigation menu' });
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById('mobile-navigation')).not.toBeVisible();
+
+    fireEvent.click(menuButton);
+
+    expect(screen.getByRole('button', { name: 'Close navigation menu' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toBeVisible();
+
+    fireEvent.click(screen.getAllByRole('link', { name: 'My Applications' }).at(-1));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current path')).toHaveTextContent('/my-applications');
+    });
+    expect(screen.getByRole('button', { name: 'Open navigation menu' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+  });
+
+  it('closes the mobile navigation with Escape', () => {
+    render(
+      <MemoryRouter initialEntries={['/apply']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(screen.getByRole('button', { name: 'Open navigation menu' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+  });
 });

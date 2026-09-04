@@ -194,3 +194,65 @@
 .cds--progress {
   align-self: center;
 }
+
+@media (max-width: 767px) {
+  .main-content-container {
+    gap: 2rem;
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    text-align: left;
+  }
+
+  .page-header div {
+    width: 100%;
+  }
+
+  .demo-preset-panel {
+    padding: 1rem;
+  }
+
+  .form-content-wrapper {
+    padding: 1.5rem 1rem;
+  }
+
+  .main-content-container > .cds--progress {
+    align-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.5rem;
+  }
+
+  .form-step-container .cds--date-picker,
+  .form-step-container .cds--date-picker-container,
+  .form-step-container .cds--date-picker-input__wrapper,
+  .form-step-container .cds--date-picker__input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .button-container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .button-container .cds--btn {
+    width: 100%;
+    max-width: none;
+  }
+
+  .review-sections-wrapper {
+    padding: 1rem;
+  }
+
+  .review-section,
+  .cds--inline-notification__subtitle {
+    overflow-wrap: anywhere;
+  }
+}

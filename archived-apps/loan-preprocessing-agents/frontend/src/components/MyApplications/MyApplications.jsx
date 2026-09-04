@@ -176,6 +176,7 @@ const MyApplications = () => {
       <h1 className="applications-header">My Applications</h1>
       <p>Here is a list of your submitted loan applications.</p>
       <p className="applications-subtitle">You can hover on a row and click to see the detailed steps followed by agents.</p>
+      <p className="applications-scroll-hint">Swipe sideways to view status, details, and submitted date.</p>
       
       <DataTable rows={applications} headers={headers}>
         {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
