@@ -48,6 +48,11 @@ const STATUS_PRESENTATION = {
   unknown: { label: 'Status unavailable', tag: 'gray', Icon: UnknownFilled },
   not_configured: { label: 'Not configured', tag: 'red', Icon: ErrorFilled },
 };
+const STATUS_UNAVAILABLE_OVERALL = {
+  status: 'unknown',
+  title: 'Status unavailable',
+  message: 'We could not check the demo status. You may still try the demo.',
+};
 
 const EVIDENCE_LABELS = {
   live_check: 'Live check',
@@ -86,9 +91,14 @@ const capabilityItems = (status, isStale) => CAPABILITIES.map(([id, label, fallb
   };
 });
 
-const dependencyItems = (status) => DEPENDENCIES.flatMap(([id, label]) => {
+const dependencyItems = (status, isStale) => DEPENDENCIES.flatMap(([id, label]) => {
   const dependency = status?.dependencies.find((item) => item.id === id);
-  return dependency ? [{ ...dependency, id, label }] : [];
+  return dependency ? [{
+    ...dependency,
+    id,
+    label,
+    status: isStale ? 'unknown' : dependency.status,
+  }] : [];
 });
 
 const dependencyTiming = (dependency) => {
@@ -127,16 +137,20 @@ const SystemStatus = () => {
     sequence: 0,
   });
   const previousRefreshing = useRef(isRefreshing);
+  const hasStatus = Boolean(status);
+  const shownOverall = error || isStale
+    ? STATUS_UNAVAILABLE_OVERALL
+    : status?.overall;
 
   useEffect(() => {
-    if (previousRefreshing.current && !isRefreshing && !error && status) {
+    if (previousRefreshing.current && !isRefreshing && !error && hasStatus && shownOverall) {
       setRefreshAnnouncement((current) => ({
-        message: `Demo status refreshed. ${status.overall.title}.`,
+        message: `Demo status refreshed. ${shownOverall.title}.`,
         sequence: current.sequence + 1,
       }));
     }
     previousRefreshing.current = isRefreshing;
-  }, [error, isRefreshing, status]);
+  }, [error, hasStatus, isRefreshing, shownOverall]);
 
   const handleRefresh = () => {
     try {
@@ -146,16 +160,8 @@ const SystemStatus = () => {
     }
   };
 
-  const hasStatus = Boolean(status);
-  const shownOverall = error || isStale
-    ? {
-        status: 'unknown',
-        title: 'Status unavailable',
-        message: 'We could not check the demo status. You may still try the demo.',
-    }
-    : status?.overall;
   const capabilities = hasStatus ? capabilityItems(status, isStale) : [];
-  const dependencies = hasStatus ? dependencyItems(status) : [];
+  const dependencies = hasStatus ? dependencyItems(status, isStale) : [];
 
   return (
     <div className="system-status-page">

@@ -120,6 +120,100 @@ class StatusAggregationTests(unittest.TestCase):
             ),
         )
 
+    def test_each_non_ready_capability_has_fixed_operation_specific_copy(self):
+        cases = (
+            (
+                "submit_application",
+                "loan_api",
+                StatusValue.LIMITED,
+                "You can still submit an application, but it may take longer than usual.",
+            ),
+            (
+                "submit_application",
+                "loan_api",
+                StatusValue.UNAVAILABLE,
+                "Application submission is unavailable. Please try again later.",
+            ),
+            (
+                "submit_application",
+                "loan_api",
+                StatusValue.NOT_CONFIGURED,
+                "Application submission is not configured for this demo.",
+            ),
+            (
+                "process_documents",
+                "document_processing_agent",
+                StatusValue.LIMITED,
+                "You can continue, but document processing may take longer than usual.",
+            ),
+            (
+                "process_documents",
+                "document_processing_agent",
+                StatusValue.UNAVAILABLE,
+                "Document processing is unavailable. Please try again later.",
+            ),
+            (
+                "process_documents",
+                "document_processing_agent",
+                StatusValue.NOT_CONFIGURED,
+                "Document processing is not configured for this demo.",
+            ),
+            (
+                "generate_decision",
+                "final_decision_agent",
+                StatusValue.LIMITED,
+                "You can continue, but a loan decision may take longer than usual.",
+            ),
+            (
+                "generate_decision",
+                "final_decision_agent",
+                StatusValue.UNAVAILABLE,
+                "Loan decisions are unavailable. Please try again later.",
+            ),
+            (
+                "generate_decision",
+                "final_decision_agent",
+                StatusValue.NOT_CONFIGURED,
+                "Loan decisions are not configured for this demo.",
+            ),
+            (
+                "view_applications",
+                "postgresql",
+                StatusValue.LIMITED,
+                "You can still view applications, but history may take longer to load.",
+            ),
+            (
+                "view_applications",
+                "postgresql",
+                StatusValue.UNAVAILABLE,
+                "Application history is unavailable. Please try again later.",
+            ),
+            (
+                "view_applications",
+                "postgresql",
+                StatusValue.NOT_CONFIGURED,
+                "Application history is not configured for this demo.",
+            ),
+        )
+
+        for capability_id, dependency_id, status, expected_message in cases:
+            with self.subTest(capability_id=capability_id, status=status):
+                dependencies = ready_dependencies()
+                dependencies[dependency_id] = dependency(dependency_id, status)
+
+                capabilities = {
+                    item.id: item for item in build_capabilities(dependencies)
+                }
+                capability = capabilities[capability_id]
+
+                self.assertIs(capability.status, status)
+                self.assertEqual(capability.message, expected_message)
+                self.assertNotRegex(
+                    capability.message.casefold(),
+                    r"https?://|\b(postgresql|cos|watsonx|wxo|openllmetry)\b|"
+                    r"document_(processing|validation)_agent|final_decision_agent",
+                )
+
     def test_wxo_outage_limits_processing_but_keeps_history_ready(self):
         dependencies = ready_dependencies()
         dependencies["wxo"] = dependency("wxo", StatusValue.UNAVAILABLE)

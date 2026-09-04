@@ -28,17 +28,59 @@ CAPABILITY_LABELS = {
     "view_applications": "View applications",
 }
 
-_LIMITED_MESSAGE = "Some required dependencies need attention"
-_UNAVAILABLE_MESSAGE = "One or more required dependencies are unavailable"
-_READY_MESSAGES = {
-    "submit_application": "Online form and PDF upload are available.",
-    "process_documents": "Uploaded documents can be extracted and validated.",
-    "generate_decision": (
-        "Agent processing is available. Results may take 2–4 minutes."
-    ),
-    "view_applications": (
-        "Application history and processing details are available."
-    ),
+_CAPABILITY_MESSAGES = {
+    "submit_application": {
+        StatusValue.READY: "Online form and PDF upload are available.",
+        StatusValue.LIMITED: (
+            "You can still submit an application, but it may take longer than usual."
+        ),
+        StatusValue.UNAVAILABLE: (
+            "Application submission is unavailable. Please try again later."
+        ),
+        StatusValue.NOT_CONFIGURED: (
+            "Application submission is not configured for this demo."
+        ),
+    },
+    "process_documents": {
+        StatusValue.READY: "Uploaded documents can be extracted and validated.",
+        StatusValue.LIMITED: (
+            "You can continue, but document processing may take longer than usual."
+        ),
+        StatusValue.UNAVAILABLE: (
+            "Document processing is unavailable. Please try again later."
+        ),
+        StatusValue.NOT_CONFIGURED: (
+            "Document processing is not configured for this demo."
+        ),
+    },
+    "generate_decision": {
+        StatusValue.READY: (
+            "Agent processing is available. Results may take 2–4 minutes."
+        ),
+        StatusValue.LIMITED: (
+            "You can continue, but a loan decision may take longer than usual."
+        ),
+        StatusValue.UNAVAILABLE: (
+            "Loan decisions are unavailable. Please try again later."
+        ),
+        StatusValue.NOT_CONFIGURED: (
+            "Loan decisions are not configured for this demo."
+        ),
+    },
+    "view_applications": {
+        StatusValue.READY: (
+            "Application history and processing details are available."
+        ),
+        StatusValue.LIMITED: (
+            "You can still view applications, but history may take longer to load."
+        ),
+        StatusValue.UNAVAILABLE: (
+            "Application history is unavailable. Please try again later."
+        ),
+        StatusValue.NOT_CONFIGURED: (
+            "Application history is not configured for this demo."
+        ),
+    },
 }
 _OVERALL_COPY = {
     StatusValue.READY: (
@@ -63,8 +105,10 @@ def _capability_status(
     statuses = [
         item.status if item is not None else StatusValue.UNKNOWN for item in required
     ]
-    if any(status in (StatusValue.UNAVAILABLE, StatusValue.NOT_CONFIGURED) for status in statuses):
+    if StatusValue.UNAVAILABLE in statuses:
         return StatusValue.UNAVAILABLE
+    if StatusValue.NOT_CONFIGURED in statuses:
+        return StatusValue.NOT_CONFIGURED
     if any(
         status in (StatusValue.LIMITED, StatusValue.UNKNOWN, StatusValue.CHECKING)
         for status in statuses
@@ -79,11 +123,7 @@ def build_capabilities(
     capabilities = []
     for capability_id in CAPABILITY_DEPENDENCIES:
         status = _capability_status(capability_id, dependencies)
-        message = {
-            StatusValue.READY: _READY_MESSAGES[capability_id],
-            StatusValue.LIMITED: _LIMITED_MESSAGE,
-            StatusValue.UNAVAILABLE: _UNAVAILABLE_MESSAGE,
-        }[status]
+        message = _CAPABILITY_MESSAGES[capability_id][status]
         capabilities.append(
             CapabilityStatus(
                 id=capability_id,

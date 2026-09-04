@@ -198,6 +198,39 @@ describe('SystemStatus', () => {
     expect(within(capabilities).getAllByText('Status unavailable')).toHaveLength(4);
   });
 
+  it('shows no Ready dependency presentation when stale technical details are expanded', () => {
+    useSystemStatusMock.mockReturnValue(contextValue({
+      status: { ...readyStatus, stale: false },
+      checkedAtLabel: 'Status data is out of date',
+      isStale: true,
+    }));
+
+    render(<SystemStatus />);
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+
+    const dependencies = screen.getByRole('list', { name: 'Technical dependencies' });
+    expect(within(dependencies).queryByText('Ready')).not.toBeInTheDocument();
+    expect(within(dependencies).getAllByText('Status unavailable')).toHaveLength(2);
+  });
+
+  it('announces the effective unavailable status after a stale refresh completes', () => {
+    const value = contextValue({
+      status: { ...readyStatus, stale: false },
+      checkedAtLabel: 'Status data is out of date',
+      isStale: true,
+    });
+    useSystemStatusMock.mockImplementation(() => value);
+    const { rerender } = render(<SystemStatus />);
+
+    value.isRefreshing = true;
+    rerender(<SystemStatus />);
+    value.isRefreshing = false;
+    rerender(<SystemStatus />);
+
+    expect(screen.getByText('Demo status refreshed. Status unavailable.')).toBeVisible();
+    expect(screen.queryByText('Demo status refreshed. Demo ready.')).not.toBeInTheDocument();
+  });
+
   it('shows latest fixed-agent success or failure and no recent run ahead of checked_at', () => {
     useSystemStatusMock.mockReturnValue(contextValue({
       status: {
