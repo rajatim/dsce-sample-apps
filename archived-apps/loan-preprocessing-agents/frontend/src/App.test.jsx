@@ -42,6 +42,12 @@ vi.mock('./components/MyApplications/MyApplications', () => ({
 vi.mock('./components/LoanCalculator/LoanCalculator', () => ({
   default: () => <h1>Loan calculator</h1>,
 }));
+vi.mock('./components/SystemStatus/SystemStatus', () => ({
+  default: () => <h1>Demo status page</h1>,
+}));
+vi.mock('./contexts/SystemStatusContext', () => ({
+  SystemStatusProvider: ({ children }) => <>{children}</>,
+}));
 
 import App from './App';
 
@@ -99,6 +105,43 @@ describe('App demo-only routes', () => {
       'aria-expanded',
       'false'
     );
+  });
+
+  it('exposes Demo status in desktop and mobile navigation and closes the mobile drawer', async () => {
+    render(
+      <MemoryRouter initialEntries={['/apply']}>
+        <App />
+        <CurrentPath />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Demo status' })).toHaveAttribute('href', '/status');
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+
+    const statusLinks = screen.getAllByRole('link', { name: 'Demo status' });
+    expect(statusLinks).toHaveLength(2);
+    fireEvent.click(statusLinks.at(-1));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current path')).toHaveTextContent('/status');
+    });
+    expect(screen.getByRole('button', { name: 'Open navigation menu' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    expect(screen.getByText('Demo status page')).toBeVisible();
+  });
+
+  it('renders the Demo status page at /status without removing navigation', () => {
+    render(
+      <MemoryRouter initialEntries={['/status']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Demo status page')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Apply' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Demo status' })).toBeVisible();
   });
 
   it('closes the mobile navigation with Escape', () => {

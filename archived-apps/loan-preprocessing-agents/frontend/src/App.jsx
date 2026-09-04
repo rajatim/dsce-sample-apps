@@ -17,6 +17,8 @@ import PanelContext from './contexts/PanelContext';
 import LoanApplication from './components/LoanApplication/LoanApplication';
 import MyApplications from './components/MyApplications/MyApplications';
 import LoanCalculator from './components/LoanCalculator/LoanCalculator';
+import SystemStatus from './components/SystemStatus/SystemStatus';
+import { SystemStatusProvider } from './contexts/SystemStatusContext';
 
 import './App.css';
 
@@ -39,7 +41,8 @@ function App() {
 
   return (
     <PanelContext.Provider value={{ setIsPanelOpen, setPanelContent }}>
-    <div className="app-wrapper">
+    <SystemStatusProvider>
+      <div className="app-wrapper">
       <Header aria-label="Loan Application Platform">
         <HeaderMenuButton
           aria-label={isMobileNavExpanded ? 'Close navigation menu' : 'Open navigation menu'}
@@ -55,6 +58,7 @@ function App() {
           <HeaderMenuItem as={Link} to="/apply">Apply</HeaderMenuItem>
           <HeaderMenuItem as={Link} to="/my-applications">My Applications</HeaderMenuItem>
           <HeaderMenuItem as={Link} to="/calculator">Loan Calculator</HeaderMenuItem>
+          <HeaderMenuItem as={Link} to="/status">Demo status</HeaderMenuItem>
         </HeaderNavigation>
         <SideNav
           id="mobile-navigation"
@@ -74,6 +78,9 @@ function App() {
             <SideNavLink as={Link} to="/calculator" onClick={closeMobileNavigation}>
               Loan Calculator
             </SideNavLink>
+            <SideNavLink as={Link} to="/status" onClick={closeMobileNavigation}>
+              Demo status
+            </SideNavLink>
           </SideNavItems>
         </SideNav>
       </Header>
@@ -83,6 +90,7 @@ function App() {
           <Route path="/apply" element={<LoanApplication />} />
           <Route path="/my-applications" element={<MyApplications />} />
           <Route path="/calculator" element={<LoanCalculator />} />
+          <Route path="/status" element={<SystemStatus />} />
           <Route path="/" element={<Navigate to="/apply" replace />} />
           <Route path="*" element={<Navigate to="/apply" replace />} />
         </Routes>
@@ -90,7 +98,8 @@ function App() {
       <SidePanel isOpen={isPanelOpen} onClose={() => setIsPanelOpen(false)}>
         {panelContent}
       </SidePanel>
-    </div>
+      </div>
+    </SystemStatusProvider>
     </PanelContext.Provider>
   );
 }
