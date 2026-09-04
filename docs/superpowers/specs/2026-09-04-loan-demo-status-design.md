@@ -2,7 +2,7 @@
 
 日期：2026-09-04
 
-狀態：待使用者審閱
+狀態：已由使用者確認
 
 範圍：`archived-apps/loan-preprocessing-agents` 的 React 前端與 FastAPI 後端
 
