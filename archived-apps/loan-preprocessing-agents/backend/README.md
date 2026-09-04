@@ -187,8 +187,9 @@ are low-cost and read-only: COS `HEAD Bucket`, watsonx.ai project metadata
 `GET`, and WXO registered-agents `GET`. WXO registration is the live check for
 the three Agents. The page may also show informational, timestamp-only local
 history derived from a bounded scan of the newest 500 Agent events. That
-history has no freshness window or guarantee, and its timestamps never promote
-a failed live check to `ready`. The status check never runs an Agent.
+history has no freshness window or guarantee. Local timestamp history does not
+establish or guarantee current Agent availability, and its timestamps never
+promote a failed live check to `ready`. The status check never runs an Agent.
 OpenLLMetry is informational and never changes a user capability or the overall
 availability result.
 
