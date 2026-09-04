@@ -30,7 +30,7 @@
 
 - Create `backend/status_models.py`: 狀態 enum 與公開 response schema，集中 allowlist 欄位。
 - Create `backend/services/status_aggregation.py`: dependency → capability → overall 的純函式規則。
-- Create `backend/repositories/status_activity.py`: 從既有 `agent_events` 讀取最近三個 Agent 的執行證據。
+- Create `backend/repositories/status_activity.py`: 從本地 `agent_events` 最新 500 筆的 bounded scan 產生 informational timestamp-only Agent history；不提供 freshness window／guarantee，也不代表 availability。
 - Create `backend/services/status_checks.py`: PostgreSQL、COS、watsonx.ai、WXO、OpenLLMetry 的唯讀檢查。
 - Create `backend/services/system_status.py`: 並行檢查、快取、cooldown、stale 與 response 組裝。
 - Modify `backend/utils/cos_client.py`: 提供不吞錯誤的 `head_bucket()` 唯讀方法。
@@ -105,6 +105,10 @@ uv run python -m unittest tests.test_status_aggregation -v
 Expected: import failure for `status_models` or `services.status_aggregation`.
 
 - [ ] **Step 3: Add strict public response models**
+
+`RECENT_EXECUTION` 是既有 public wire value 的名稱，只標示 timestamp
+history 的資料來源；它不表示 wall-clock freshness、freshness SLA 或目前
+availability，也不得覆蓋或提升 failed live WXO registration result。
 
 Implement the following shape in `status_models.py`; `extra="forbid"` prevents accidental secret fields from leaking into the public contract:
 
@@ -214,7 +218,7 @@ git add archived-apps/loan-preprocessing-agents/backend/status_models.py \
 git commit -m "feat: define loan demo status model"
 ```
 
-### Task 2: Derive privacy-safe recent Agent activity from existing events
+### Task 2: Derive privacy-safe informational Agent timestamp history from bounded local events
 
 **Files:**
 - Create: `archived-apps/loan-preprocessing-agents/backend/repositories/status_activity.py`
@@ -225,12 +229,22 @@ git commit -m "feat: define loan demo status model"
 - Produces: `get_recent_agent_activity(session_factory=SessionLocal, limit: int = 500) -> dict[str, AgentActivity]`.
 - Produces: `AgentActivity(agent_key: str, last_success_at: datetime | None, last_failure_at: datetime | None)`.
 
+The retained function name `get_recent_agent_activity()` means only
+newest-by-sort-order within the bounded 500-event local query. It defines no
+age threshold, freshness window, guarantee, or SLA. Its timestamp-only output
+is informational and cannot override or promote a failed live WXO registration
+result.
+
 - [ ] **Step 1: Write failing repository tests**
 
 Create SQLite-backed tests following `tests/test_agent_event_repository.py` and cover:
 
+These examples call the retained `get_recent_agent_activity()` identifier; the
+name does not add a freshness guarantee to the bounded local history described
+above.
+
 ```python
-def test_correlates_responses_with_the_latest_agent_invocation(self):
+def test_correlates_responses_with_the_next_agent_invocation_in_event_order(self):
     append("app-1", "invoke_agent", {"message": "Invoking Document Processor Agent"})
     append("app-1", "agent_response", {"message": "extraction complete"})
     append("app-1", "invoke_agent", {"message": "Invoking Document Validator Agent"})
@@ -264,7 +278,11 @@ Implementation requirements:
 - Recognize only the fixed invocation markers `Document Processor`, `Document Validator`, and `Final Decision`.
 - Treat an `agent_response` containing the existing retryable phrases as failure; other non-empty responses are success.
 - Never return event payload, application ID, applicant data, response body or failure message.
-- An application without an invocation marker contributes no Agent activity.
+- An application without an invocation marker contributes no informational
+  Agent timestamp history.
+- The resulting timestamps have no freshness window or guarantee, do not prove
+  current availability, and never override or promote a failed live WXO
+  registration result.
 
 Use this immutable return type:
 
@@ -289,7 +307,7 @@ Expected: exit 0 with no failures.
 ```bash
 git add archived-apps/loan-preprocessing-agents/backend/repositories/status_activity.py \
   archived-apps/loan-preprocessing-agents/backend/tests/test_status_activity.py
-git commit -m "feat: summarize recent loan agent activity"
+git commit -m "feat: summarize bounded loan agent history"
 ```
 
 ### Task 3: Implement low-cost, read-only dependency checks
@@ -425,7 +443,8 @@ git commit -m "feat: add read-only loan dependency checks"
 - Create: `archived-apps/loan-preprocessing-agents/backend/tests/test_status_endpoints.py`
 
 **Interfaces:**
-- Consumes: Task 1 aggregation, Task 2 activity, Task 3 check functions.
+- Consumes: Task 1 aggregation, Task 2 informational timestamp-only local
+  history from a bounded newest-500-events scan, and Task 3 check functions.
 - Produces: `SystemStatusService.get_status(force_refresh: bool = False) -> SystemStatusResponse`.
 - Produces: `GET /readyz` and `GET /system-status?refresh=false`.
 
@@ -455,7 +474,10 @@ def test_one_timed_out_check_does_not_remove_other_results(self):
     self.assertIs(by_id["wxo"].status, StatusValue.UNKNOWN)
 ```
 
-Also assert that recent Agent timestamps are attached only to the corresponding Agent dependency and never change a failed live check into `ready`.
+Also assert that informational Agent timestamps from the bounded newest-500
+local-event scan are attached only to the corresponding Agent dependency. They
+have no freshness window or guarantee and never override or promote a failed
+live WXO registration check to `ready`.
 
 - [ ] **Step 2: Write failing endpoint tests**
 
@@ -486,7 +508,9 @@ Expected: missing service and route failures.
 - Each timed-out or failed check creates a fixed `unknown` or `unavailable` result without `str(exception)`.
 - Protect refresh with `threading.Lock` so concurrent public requests share one refresh.
 - Return dependencies in a stable display order.
-- Attach `AgentActivity` timestamps after live WXO checks.
+- Attach the bounded local-history `AgentActivity` timestamps only after live
+  WXO registration checks. They are informational, have no freshness guarantee,
+  and never override or promote a failed live result.
 - Build capabilities and overall only through Task 1 pure functions.
 
 - [ ] **Step 5: Add endpoints without changing business routes**
@@ -921,6 +945,12 @@ Task 8 execution deviations (2026-09-05):
 - Review fix round 1 clarified that Agent local-history timestamps carry no
   freshness guarantee and expanded the feature filename scan from only `.env`
   to `.env`, `.env.local`, and every `.env.*` variant. The expanded scan passed.
+- Review fix round 2 applied the same bounded newest-500-events, informational
+  timestamp-only, no-freshness-guarantee wording throughout Tasks 1, 2, and 4.
+  Retained identifiers such as `RECENT_EXECUTION` and
+  `get_recent_agent_activity()` are explicitly documented as names, not
+  freshness guarantees, and local history cannot override or promote a failed
+  live WXO registration result.
 
 ## Final Review Checklist
 
