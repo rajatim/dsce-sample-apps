@@ -64,6 +64,10 @@ class COSClient:
             endpoint_url=cos_endpoint
         )
 
+    def head_bucket(self, bucket_name: str) -> None:
+        """Verify read-only bucket metadata access; propagate failures to the caller."""
+        self._cos.head_bucket(Bucket=bucket_name)
+
     def get_buckets(self) -> List[str]:
         """
         Retrieves a list of all buckets in the COS instance.
