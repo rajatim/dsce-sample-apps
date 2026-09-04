@@ -250,6 +250,75 @@ class StatusAggregationTests(unittest.TestCase):
 
         self.assertIs(build_overall(capabilities).status, StatusValue.UNAVAILABLE)
 
+    def test_submit_and_view_not_configured_make_overall_unavailable(self):
+        dependencies = ready_dependencies()
+        dependencies["loan_api"] = dependency(
+            "loan_api", StatusValue.NOT_CONFIGURED
+        )
+
+        capabilities = build_capabilities(dependencies)
+
+        self.assertIs(build_overall(capabilities).status, StatusValue.UNAVAILABLE)
+
+    def test_unavailable_submit_and_not_configured_view_make_overall_unavailable(
+        self,
+    ):
+        dependencies = ready_dependencies()
+        dependencies["loan_api"] = dependency(
+            "loan_api", StatusValue.NOT_CONFIGURED
+        )
+        dependencies["cos"] = dependency("cos", StatusValue.UNAVAILABLE)
+
+        capabilities = build_capabilities(dependencies)
+
+        self.assertIs(build_overall(capabilities).status, StatusValue.UNAVAILABLE)
+
+    def test_capability_status_precedence_is_unavailable_then_not_configured_then_limited(
+        self,
+    ):
+        dependencies = ready_dependencies()
+        dependencies["loan_api"] = dependency("loan_api", StatusValue.LIMITED)
+        dependencies["postgresql"] = dependency(
+            "postgresql", StatusValue.NOT_CONFIGURED
+        )
+        dependencies["cos"] = dependency("cos", StatusValue.UNAVAILABLE)
+
+        capabilities = {
+            item.id: item for item in build_capabilities(dependencies)
+        }
+        self.assertIs(
+            capabilities["submit_application"].status,
+            StatusValue.UNAVAILABLE,
+        )
+
+        dependencies["cos"] = dependency("cos", StatusValue.READY)
+        capabilities = {
+            item.id: item for item in build_capabilities(dependencies)
+        }
+        self.assertIs(
+            capabilities["submit_application"].status,
+            StatusValue.NOT_CONFIGURED,
+        )
+
+        dependencies["postgresql"] = dependency("postgresql", StatusValue.READY)
+        capabilities = {
+            item.id: item for item in build_capabilities(dependencies)
+        }
+        self.assertIs(
+            capabilities["submit_application"].status,
+            StatusValue.LIMITED,
+        )
+
+    def test_one_nonterminal_not_configured_capability_keeps_overall_limited(self):
+        dependencies = ready_dependencies()
+        dependencies["final_decision_agent"] = dependency(
+            "final_decision_agent", StatusValue.NOT_CONFIGURED
+        )
+
+        capabilities = build_capabilities(dependencies)
+
+        self.assertIs(build_overall(capabilities).status, StatusValue.LIMITED)
+
     def test_other_mixed_capability_state_is_limited(self):
         dependencies = ready_dependencies()
         dependencies["wxo"] = dependency("wxo", StatusValue.LIMITED)

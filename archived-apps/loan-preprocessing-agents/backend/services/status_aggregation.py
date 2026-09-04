@@ -140,8 +140,10 @@ def build_overall(capabilities: Sequence[CapabilityStatus]) -> OverallStatus:
     if all(statuses.get(capability_id) is StatusValue.READY for capability_id in CAPABILITY_DEPENDENCIES):
         status = StatusValue.READY
     elif (
-        statuses.get("submit_application") is StatusValue.UNAVAILABLE
-        and statuses.get("view_applications") is StatusValue.UNAVAILABLE
+        statuses.get("submit_application")
+        in (StatusValue.UNAVAILABLE, StatusValue.NOT_CONFIGURED)
+        and statuses.get("view_applications")
+        in (StatusValue.UNAVAILABLE, StatusValue.NOT_CONFIGURED)
     ):
         status = StatusValue.UNAVAILABLE
     else:
