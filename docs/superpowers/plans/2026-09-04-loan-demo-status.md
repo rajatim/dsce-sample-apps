@@ -4,7 +4,7 @@
 
 **Goal:** 為 Loan POC 建立一般使用者看得懂、技術人員也能展開診斷的 `Demo status` 頁面，同時維持安全、低成本且不觸發 LLM 的健康檢查。
 
-**Architecture:** FastAPI 保留淺層 `/healthz`，新增 PostgreSQL readiness `/readyz` 與公開但完全去敏感化的 `/system-status`。後端並行執行唯讀 dependency checks，使用 30 秒快取與最近 Agent execution evidence，再由 React context 共用狀態，Carbon UI 呈現四個使用者 capability 與收合的技術細節。
+**Architecture:** FastAPI 保留淺層 `/healthz`，新增 PostgreSQL readiness `/readyz` 與公開但完全去敏感化的 `/system-status`。後端並行執行唯讀 dependency checks，使用 30 秒快取，並附加來自最新 500 筆 event bounded scan 的 timestamp-only Agent local history（不代表 freshness 或 availability），再由 React context 共用狀態，Carbon UI 呈現四個使用者 capability 與收合的技術細節。
 
 **Tech Stack:** Python 3.13、FastAPI、Pydantic、SQLAlchemy、IBM COS SDK、IBM Cloud IAM／watsonx.ai／watsonx Orchestrate REST APIs、React 19、Vite、Vitest、IBM Carbon React。
 
@@ -882,7 +882,9 @@ Expected namespace: `dsce-loan-poc`. If the live Deployment name differs from `l
 git status --short
 git diff --check
 git diff --cached --check
-git diff --name-only 1dd6ca2..HEAD | rg 'loan_app\.db|logs\.json|\.env$' && exit 1 || true
+git diff --name-only 1dd6ca2..HEAD \
+  | rg '(^|/)(loan_app\.db|logs\.json)$|(^|/)\.env($|\.)' \
+  && exit 1 || true
 git diff 1dd6ca2..HEAD | rg '(API_KEY|APIKEY|PASSWORD|Bearer )[=: ]+[A-Za-z0-9_-]{12,}' && exit 1 || true
 ```
 
@@ -916,6 +918,9 @@ Task 8 execution deviations (2026-09-05):
   resource query was attempted. The read-only preflight, probe requirements,
   immutable-digest rollback, and explicit approval gate are documented for a
   later approved deployment session.
+- Review fix round 1 clarified that Agent local-history timestamps carry no
+  freshness guarantee and expanded the feature filename scan from only `.env`
+  to `.env`, `.env.local`, and every `.env.*` variant. The expanded scan passed.
 
 ## Final Review Checklist
 
@@ -926,7 +931,7 @@ Task 8 execution deviations (2026-09-05):
 - [x] `/readyz` depends only on PostgreSQL.
 - [x] `/system-status` contains only allowlisted public fields.
 - [x] Manual refresh does not invoke LLM, WXO runs or COS writes.
-- [x] Three Agents are checked by registration plus recent execution evidence, not by test execution.
+- [x] Three Agents use a live WXO registration check; timestamp-only local history scans at most the newest 500 events, has no freshness guarantee, and never changes a failed live check to `ready`.
 - [x] OpenLLMetry failure does not change capability or overall status.
 - [x] Desktop and mobile both expose `/status`.
 - [x] User-flow notifications appear only for actionable limited/unavailable states.

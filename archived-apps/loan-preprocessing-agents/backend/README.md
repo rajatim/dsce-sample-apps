@@ -184,10 +184,13 @@ Agent execution, or COS write.
 
 After an ephemeral IAM token exchange where required, the IBM service checks
 are low-cost and read-only: COS `HEAD Bucket`, watsonx.ai project metadata
-`GET`, and WXO registered-agents `GET`. The three Agents are verified by
-registration plus timestamp-only recent execution evidence; the status check
-never runs an Agent. OpenLLMetry is informational and never changes a user
-capability or the overall availability result.
+`GET`, and WXO registered-agents `GET`. WXO registration is the live check for
+the three Agents. The page may also show informational, timestamp-only local
+history derived from a bounded scan of the newest 500 Agent events. That
+history has no freshness window or guarantee, and its timestamps never promote
+a failed live check to `ready`. The status check never runs an Agent.
+OpenLLMetry is informational and never changes a user capability or the overall
+availability result.
 
 Verify only allowlisted public fields. Do not print the full dependency
 document during a shared-screen check:
