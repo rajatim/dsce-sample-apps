@@ -83,6 +83,14 @@ def check_postgresql(
     """Execute a single read-only PostgreSQL liveness statement."""
     try:
         with session_factory() as session:
+            if session.get_bind().dialect.name != "postgresql":
+                return _dependency(
+                    "postgresql",
+                    StatusValue.NOT_CONFIGURED,
+                    EvidenceKind.NOT_VERIFIED,
+                    "PostgreSQL is not configured.",
+                    checked_at,
+                )
             session.execute(text("SELECT 1"))
     except Exception as error:
         _warning(_LABELS["postgresql"], error)
@@ -210,7 +218,49 @@ def _wxo_root(environment: Mapping[str, str]) -> str:
     return f"https://api.dl.watson-orchestrate.ibm.com/instances/{instance_id}"
 
 
-def _wxo_unavailable(checked_at: datetime) -> list[DependencyStatus]:
+def _registered_agent_ids(payload: Any) -> set[str]:
+    if isinstance(payload, list):
+        collection = payload
+    elif isinstance(payload, Mapping) and isinstance(payload.get("agents"), list):
+        collection = payload["agents"]
+    else:
+        raise _HTTPStatusFailure()
+    if not all(isinstance(item, Mapping) for item in collection):
+        raise _HTTPStatusFailure()
+    return {
+        agent_id
+        for item in collection
+        if isinstance((agent_id := item.get("id")), str) and agent_id
+    }
+
+
+def _wxo_agent_status(
+    dependency_id: str,
+    agent_id: str,
+    registered_ids: set[str],
+    checked_at: datetime,
+) -> DependencyStatus:
+    if not agent_id:
+        return _dependency(
+            dependency_id,
+            StatusValue.NOT_CONFIGURED,
+            EvidenceKind.NOT_VERIFIED,
+            "Agent is not configured.",
+            checked_at,
+        )
+    registered = agent_id in registered_ids
+    return _dependency(
+        dependency_id,
+        StatusValue.READY if registered else StatusValue.UNAVAILABLE,
+        EvidenceKind.LIVE_CHECK,
+        "Agent is registered." if registered else "Agent is not registered.",
+        checked_at,
+    )
+
+
+def _wxo_unavailable(
+    checked_at: datetime, agent_ids: list[str]
+) -> list[DependencyStatus]:
     return [
         _dependency(
             "wxo",
@@ -227,7 +277,11 @@ def _wxo_unavailable(checked_at: datetime) -> list[DependencyStatus]:
                 "Agent status is unavailable.",
                 checked_at,
             )
-            for dependency_id, _ in _WXO_AGENTS
+            if agent_id
+            else _wxo_agent_status(dependency_id, agent_id, set(), checked_at)
+            for (dependency_id, _), agent_id in zip(
+                _WXO_AGENTS, agent_ids, strict=True
+            )
         ],
     ]
 
@@ -240,7 +294,7 @@ def check_wxo(
     service_url = _value(environment, "WXO_SERVICE_INSTANCE_URL")
     instance_id = _value(environment, "WXO_INSTANCE_ID")
     agent_ids = [_value(environment, name) for _, name in _WXO_AGENTS]
-    if not api_key or not (service_url or instance_id) or not all(agent_ids):
+    if not api_key or not (service_url or instance_id):
         return [
             _dependency(
                 "wxo",
@@ -267,19 +321,15 @@ def check_wxo(
         response = http.get(
             f"{root}/v2/orchestrate/agents",
             headers={"Authorization": f"Bearer {token}"},
-            params=[("ids", agent_id) for agent_id in agent_ids],
+            params=[("ids", agent_id) for agent_id in agent_ids if agent_id],
             timeout=HTTP_TIMEOUT,
         )
         if response.status_code != 200:
             raise _HTTPStatusFailure()
-        payload = response.json()
-        registered_agents = payload.get("agents", [])
-        registered_ids = {
-            item.get("id") for item in registered_agents if isinstance(item, Mapping)
-        }
+        registered_ids = _registered_agent_ids(response.json())
     except Exception as error:
         _warning(_LABELS["wxo"], error)
-        return _wxo_unavailable(checked_at)
+        return _wxo_unavailable(checked_at, agent_ids)
 
     results = [
         _dependency(
@@ -291,14 +341,9 @@ def check_wxo(
         )
     ]
     for (dependency_id, _), agent_id in zip(_WXO_AGENTS, agent_ids, strict=True):
-        registered = agent_id in registered_ids
         results.append(
-            _dependency(
-                dependency_id,
-                StatusValue.READY if registered else StatusValue.UNAVAILABLE,
-                EvidenceKind.LIVE_CHECK,
-                "Agent is registered." if registered else "Agent is not registered.",
-                checked_at,
+            _wxo_agent_status(
+                dependency_id, agent_id, registered_ids, checked_at
             )
         )
     return results

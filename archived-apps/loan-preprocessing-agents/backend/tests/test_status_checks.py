@@ -1,5 +1,9 @@
 import unittest
 from datetime import datetime, timezone
+from types import SimpleNamespace
+
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
 
 from status_models import EvidenceKind, StatusValue
 from services.status_checks import (
@@ -81,8 +85,9 @@ def token_request(api_key="test-api-key", outcome=None):
 
 
 class StrictSession:
-    def __init__(self, outcome=None):
+    def __init__(self, outcome=None, dialect_name="postgresql"):
         self.outcome = outcome
+        self.bind = SimpleNamespace(dialect=SimpleNamespace(name=dialect_name))
         self.statements = []
         self.closed = False
 
@@ -99,6 +104,9 @@ class StrictSession:
         self.statements.append(sql)
         if self.outcome is not None:
             raise self.outcome
+
+    def get_bind(self):
+        return self.bind
 
 
 class StrictCOSSDK:
@@ -121,6 +129,25 @@ def cos_client_with(sdk):
 
 
 class DependencyCheckTests(unittest.TestCase):
+    def test_sqlite_fallback_is_not_a_verified_postgresql_dependency(self):
+        engine = create_engine("sqlite://")
+        statements = []
+        event.listen(
+            engine,
+            "before_cursor_execute",
+            lambda connection, cursor, statement, parameters, context, executemany:
+                statements.append(statement),
+        )
+        sqlite_session_factory = sessionmaker(bind=engine)
+        self.addCleanup(engine.dispose)
+
+        result = check_postgresql(sqlite_session_factory, CHECKED_AT)
+
+        self.assertIs(result.status, StatusValue.NOT_CONFIGURED)
+        self.assertIs(result.evidence, EvidenceKind.NOT_VERIFIED)
+        self.assertEqual(result.message, "PostgreSQL is not configured.")
+        self.assertEqual(statements, [])
+
     def test_postgresql_executes_only_select_one_and_reports_ready(self):
         session = StrictSession()
 
@@ -352,6 +379,84 @@ class DependencyCheckTests(unittest.TestCase):
         self.assertEqual(results[1].message, "Agent is registered.")
         self.assertEqual(results[2].message, "Agent is not registered.")
         self.assertNotIn("do not expose", "".join(item.model_dump_json() for item in results))
+        http.assert_exhausted()
+
+    def test_wxo_checks_configured_agents_when_one_agent_id_is_missing(self):
+        environment = self._wxo_environment(
+            WXO_SERVICE_INSTANCE_URL="https://wxo.example/instances/demo",
+            DOCUMENT_VALIDATION_AGENT_ID="",
+        )
+        configured_ids = (AGENT_IDS[0], AGENT_IDS[2])
+        http = StrictHttp(
+            [
+                token_request(api_key="wxo-api-key"),
+                (
+                    "GET",
+                    "https://wxo.example/instances/demo/v2/orchestrate/agents",
+                    {
+                        "headers": {"Authorization": "Bearer private-token"},
+                        "params": [("ids", agent_id) for agent_id in configured_ids],
+                        "timeout": (2, 3),
+                    },
+                    FakeResponse(200, {"agents": [{"id": AGENT_IDS[0]}]}),
+                ),
+            ]
+        )
+
+        results = check_wxo(environment, http, CHECKED_AT)
+
+        self.assertEqual(
+            [(item.status, item.evidence) for item in results],
+            [
+                (StatusValue.READY, EvidenceKind.LIVE_CHECK),
+                (StatusValue.READY, EvidenceKind.LIVE_CHECK),
+                (StatusValue.NOT_CONFIGURED, EvidenceKind.NOT_VERIFIED),
+                (StatusValue.UNAVAILABLE, EvidenceKind.LIVE_CHECK),
+            ],
+        )
+        self.assertEqual(results[2].message, "Agent is not configured.")
+        http.assert_exhausted()
+
+    def test_wxo_accepts_top_level_registered_agent_collection(self):
+        environment = self._wxo_environment(
+            WXO_SERVICE_INSTANCE_URL="https://wxo.example/instances/demo"
+        )
+        http = self._wxo_http(
+            "https://wxo.example/instances/demo",
+            FakeResponse(200, [{"id": agent_id} for agent_id in AGENT_IDS]),
+        )
+
+        results = check_wxo(environment, http, CHECKED_AT)
+
+        self.assertTrue(all(item.status is StatusValue.READY for item in results))
+        http.assert_exhausted()
+
+    def test_wxo_unrecognized_success_schema_is_safely_unavailable(self):
+        environment = self._wxo_environment(
+            WXO_SERVICE_INSTANCE_URL="https://wxo.example/instances/demo"
+        )
+        http = self._wxo_http(
+            "https://wxo.example/instances/demo",
+            FakeResponse(200, {"unexpected": "private provider body"}),
+        )
+
+        with self.assertLogs("services.status_checks", level="WARNING") as captured:
+            results = check_wxo(environment, http, CHECKED_AT)
+
+        self.assertTrue(
+            all(item.status is StatusValue.UNAVAILABLE for item in results)
+        )
+        self.assertNotIn(
+            "private provider body",
+            "".join(item.model_dump_json() for item in results),
+        )
+        self.assertEqual(
+            captured.output,
+            [
+                "WARNING:services.status_checks:watsonx Orchestrate "
+                "status check failed (_HTTPStatusFailure)"
+            ],
+        )
         http.assert_exhausted()
 
     def test_wxo_resolves_ibm_cloud_instance_root(self):
