@@ -85,7 +85,39 @@ describe('LogViewer application outcomes', () => {
 
     const technicalDetails = screen.getByText('Technical details').closest('details');
     expect(technicalDetails).not.toHaveAttribute('open');
-    expect(within(technicalDetails).getByText(/classify_document/)).not.toBeVisible();
+    within(technicalDetails)
+      .getAllByRole('tree', { name: 'Structured JSON data' })
+      .forEach((tree) => expect(tree).not.toBeVisible());
+  });
+
+  it('renders nested tool JSON as an expandable tree instead of escaped text', async () => {
+    authFetchMock.mockResolvedValue(apiResponse([
+      log(
+        'tool_call',
+        {
+          message: JSON.stringify([
+            {
+              name: 'classify_document',
+              args: JSON.stringify({ filename: '/data/uploads/app_123/demo-pass-ID-Doc.png' }),
+              id: 'chatcmpl-tool-example',
+            },
+          ]),
+        },
+        '2026-09-01T06:15:39Z'
+      ),
+    ]));
+
+    render(<LogViewer application={application('Processing Failed')} />);
+    fireEvent.click(await screen.findByText('Technical details'));
+
+    expect(screen.getByRole('tree', { name: 'Structured JSON data' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Expand all JSON' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Collapse nested JSON' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Copy JSON' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all JSON' }));
+    expect(screen.getByText(/classify_document/)).toBeVisible();
+    expect(screen.getByText(/demo-pass-ID-Doc\.png/)).toBeVisible();
+    expect(screen.queryByText(/\\"filename\\"/)).not.toBeInTheDocument();
   });
 
   it('shows a rejected decision as a completed business result, not an agent failure', async () => {

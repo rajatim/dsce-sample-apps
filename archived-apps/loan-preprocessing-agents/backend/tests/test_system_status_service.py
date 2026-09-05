@@ -192,7 +192,7 @@ class SystemStatusServiceTests(unittest.TestCase):
         )
         self.assertEqual([item.id for item in result.dependencies], DISPLAY_ORDER)
 
-    def test_recent_activity_only_annotates_its_agent_and_never_overrides_live_failure(self):
+    def test_recent_failure_limits_its_agent_and_never_overrides_live_failure(self):
         processor_success = STARTED_AT - timedelta(minutes=3)
         validator_failure = STARTED_AT - timedelta(minutes=1)
 
@@ -235,8 +235,44 @@ class SystemStatusServiceTests(unittest.TestCase):
             by_id["document_validation_agent"].last_failure_at,
             validator_failure,
         )
+        self.assertIs(
+            by_id["document_validation_agent"].status,
+            StatusValue.LIMITED,
+        )
+        self.assertIs(
+            by_id["document_validation_agent"].evidence,
+            EvidenceKind.RECENT_EXECUTION,
+        )
+        self.assertEqual(
+            by_id["document_validation_agent"].message,
+            "Agent is reachable, but its most recent run failed.",
+        )
+        self.assertIs(result.overall.status, StatusValue.LIMITED)
         self.assertIsNone(by_id["final_decision_agent"].last_success_at)
         self.assertIsNone(by_id["wxo"].last_success_at)
+
+    def test_success_after_failure_restores_agent_to_live_ready(self):
+        failure = STARTED_AT - timedelta(minutes=3)
+        success = STARTED_AT - timedelta(minutes=1)
+        service = self.make_service(
+            activity_loader=lambda: {
+                "document_processing_agent": AgentActivity(
+                    agent_key="document_processing_agent",
+                    last_success_at=success,
+                    last_failure_at=failure,
+                ),
+            },
+        )
+
+        result = service.get_status()
+
+        by_id = {item.id: item for item in result.dependencies}
+        processor = by_id["document_processing_agent"]
+        self.assertIs(processor.status, StatusValue.READY)
+        self.assertIs(processor.evidence, EvidenceKind.LIVE_CHECK)
+        self.assertEqual(processor.last_success_at, success)
+        self.assertEqual(processor.last_failure_at, failure)
+        self.assertIs(result.overall.status, StatusValue.READY)
 
     def test_check_exception_uses_fixed_public_copy(self):
         private_values = (

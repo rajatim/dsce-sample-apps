@@ -393,18 +393,49 @@
   color: #b28600;
 }
 
-.technical-event pre {
+.structured-log-data,
+.technical-plain-text {
   max-height: 22rem;
   margin: 0.875rem 0 0;
   overflow: auto;
+  border-left: 3px solid #8d8d8d;
+  background: #f4f4f4;
+}
+
+.technical-plain-text {
   padding: 1rem;
-  background: #262626;
-  color: #f4f4f4;
+  color: #262626;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.75rem;
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.structured-log-actions {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #ffffff;
+}
+
+.structured-log-tree {
+  min-width: 28rem;
+  padding: 1rem;
+  color: #262626;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.structured-log-tree > div {
+  line-height: inherit;
 }
 
 @media (max-width: 42rem) {
@@ -438,5 +469,10 @@
   .technical-event-heading {
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .structured-log-actions .cds--btn {
+    min-height: 2.5rem;
+    padding-right: 1rem;
   }
 }

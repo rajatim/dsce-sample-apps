@@ -3,6 +3,7 @@ import { Button, InlineNotification, Loading, Tag } from '@carbon/react';
 import { Renew } from '@carbon/react/icons';
 import { authFetch } from '../../services/api';
 import { buildApiUrl } from '../../services/apiBaseUrl';
+import StructuredLogData from './StructuredLogData';
 import './LogViewer.css';
 
 const AGENT_STEPS = [
@@ -261,29 +262,6 @@ const formatTimestamp = (timestamp) => {
   }).format(date);
 };
 
-const formatLogData = (data) => {
-  if (typeof data !== 'string') {
-    return JSON.stringify(data, null, 2);
-  }
-
-  const fencedJson = data.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  let candidate = (fencedJson?.[1] || data).trim();
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const parsed = JSON.parse(candidate);
-      if (typeof parsed === 'string') {
-        candidate = parsed;
-      } else {
-        return JSON.stringify(parsed, null, 2);
-      }
-    } catch {
-      return candidate;
-    }
-  }
-  return candidate;
-};
-
 const eventTitle = (event) => {
   if (event.stage === 'invoke_agent') return String(event.data || 'Agent started');
   if (event.stage === 'tool_call') return 'Tool called';
@@ -386,7 +364,7 @@ const TechnicalDetails = ({ logs }) => (
             </div>
             <time dateTime={event.timestamp}>{formatTimestamp(event.timestamp)}</time>
           </div>
-          {event.stage !== 'invoke_agent' && <pre>{formatLogData(event.data)}</pre>}
+          {event.stage !== 'invoke_agent' && <StructuredLogData data={event.data} />}
         </article>
       ))}
     </div>

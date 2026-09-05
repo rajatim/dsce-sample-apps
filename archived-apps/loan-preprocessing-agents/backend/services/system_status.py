@@ -398,12 +398,24 @@ class SystemStatusService:
             if not isinstance(recent, AgentActivity):
                 continue
             current = updated[dependency_id]
-            updated[dependency_id] = current.model_copy(
-                update={
-                    "last_success_at": recent.last_success_at,
-                    "last_failure_at": recent.last_failure_at,
-                }
+            changes = {
+                "last_success_at": recent.last_success_at,
+                "last_failure_at": recent.last_failure_at,
+            }
+            latest_run_failed = (
+                recent.last_failure_at is not None
+                and (
+                    recent.last_success_at is None
+                    or recent.last_failure_at >= recent.last_success_at
+                )
             )
+            if current.status is StatusValue.READY and latest_run_failed:
+                changes.update(
+                    status=StatusValue.LIMITED,
+                    evidence=EvidenceKind.RECENT_EXECUTION,
+                    message="Agent is reachable, but its most recent run failed.",
+                )
+            updated[dependency_id] = current.model_copy(update=changes)
         return updated
 
     @staticmethod
