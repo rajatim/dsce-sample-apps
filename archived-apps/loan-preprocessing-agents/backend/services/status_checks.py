@@ -222,7 +222,7 @@ def check_cos(
 def check_watsonx(
     environment: Mapping[str, str], http: Any, checked_at: datetime
 ) -> DependencyStatus:
-    """Acquire an ephemeral IAM token and read watsonx project metadata."""
+    """Acquire an ephemeral IAM token and list one project deployment."""
     api_key = _value(environment, "WATSONX_APIKEY")
     project_id = _value(environment, "WATSONX_PROJECT_ID")
     base_url = _value(environment, "WATSONX_URL")
@@ -237,8 +237,13 @@ def check_watsonx(
     try:
         token = _access_token(http, api_key)
         response = http.get(
-            f"{base_url.rstrip('/')}/v2/projects/{project_id}",
+            f"{base_url.rstrip('/')}/ml/v4/deployments",
             headers={"Authorization": f"Bearer {token}"},
+            params={
+                "version": "2024-05-31",
+                "project_id": project_id,
+                "limit": 1,
+            },
             timeout=HTTP_TIMEOUT,
         )
         if response.status_code != 200:

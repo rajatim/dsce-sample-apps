@@ -262,7 +262,7 @@ class DependencyCheckTests(unittest.TestCase):
         self.assertEqual(result.message, "watsonx.ai is not configured.")
         http.assert_exhausted()
 
-    def test_watsonx_gets_iam_token_then_reads_project_metadata(self):
+    def test_watsonx_gets_iam_token_then_lists_project_deployments(self):
         environment = {
             "WATSONX_APIKEY": "test-api-key",
             "WATSONX_PROJECT_ID": "project-id",
@@ -273,12 +273,17 @@ class DependencyCheckTests(unittest.TestCase):
                 token_request(),
                 (
                     "GET",
-                    "https://watsonx.example/v2/projects/project-id",
+                    "https://watsonx.example/ml/v4/deployments",
                     {
                         "headers": {"Authorization": "Bearer private-token"},
+                        "params": {
+                            "version": "2024-05-31",
+                            "project_id": "project-id",
+                            "limit": 1,
+                        },
                         "timeout": (2, 3),
                     },
-                    FakeResponse(200, {"name": "loan-project"}),
+                    FakeResponse(200, {"resources": []}),
                 ),
             ]
         )
@@ -304,9 +309,14 @@ class DependencyCheckTests(unittest.TestCase):
                         token_request(),
                         (
                             "GET",
-                            "https://watsonx.example/v2/projects/project-id",
+                            "https://watsonx.example/ml/v4/deployments",
                             {
                                 "headers": {"Authorization": "Bearer private-token"},
+                                "params": {
+                                    "version": "2024-05-31",
+                                    "project_id": "project-id",
+                                    "limit": 1,
+                                },
                                 "timeout": (2, 3),
                             },
                             FakeResponse(status_code, {"error": "provider secret"}),
