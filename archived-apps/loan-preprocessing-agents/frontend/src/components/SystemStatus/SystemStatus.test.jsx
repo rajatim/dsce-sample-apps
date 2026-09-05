@@ -1,6 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import readyContract from '../../../../contracts/system-status-ready.json';
 
 const { useSystemStatusMock } = vi.hoisted(() => ({ useSystemStatusMock: vi.fn() }));
@@ -66,6 +66,125 @@ describe('SystemStatus', () => {
   beforeEach(() => {
     useSystemStatusMock.mockReset();
     useSystemStatusMock.mockReturnValue(contextValue());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('refreshes lightweight status after five minutes while visible and online', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({ refresh }));
+
+    render(<SystemStatus />);
+    await act(async () => {
+      vi.advanceTimersByTime(300_000);
+      await Promise.resolve();
+    });
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not auto-refresh while the status page is hidden', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({ refresh }));
+
+    render(<SystemStatus />);
+    await act(async () => {
+      vi.advanceTimersByTime(300_000);
+      await Promise.resolve();
+    });
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-refresh while the browser is offline', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({ refresh }));
+
+    render(<SystemStatus />);
+    await act(async () => {
+      vi.advanceTimersByTime(300_000);
+      await Promise.resolve();
+    });
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('refreshes an overdue check when the page becomes visible again', async () => {
+    vi.useFakeTimers();
+    let visibilityState = 'hidden';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibilityState);
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({ refresh }));
+
+    render(<SystemStatus />);
+    act(() => vi.advanceTimersByTime(300_000));
+    expect(refresh).not.toHaveBeenCalled();
+
+    visibilityState = 'visible';
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await Promise.resolve();
+    });
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes an overdue check when the browser comes online again', async () => {
+    vi.useFakeTimers();
+    let online = false;
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => online);
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({ refresh }));
+
+    render(<SystemStatus />);
+    act(() => vi.advanceTimersByTime(300_000));
+    expect(refresh).not.toHaveBeenCalled();
+
+    online = true;
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await Promise.resolve();
+    });
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh early on visibility or online events and cleans up on unmount', () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({ refresh }));
+
+    const { unmount } = render(<SystemStatus />);
+    act(() => {
+      vi.advanceTimersByTime(299_999);
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('online'));
+    });
+    expect(refresh).not.toHaveBeenCalled();
+
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(300_000);
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('online'));
+    });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('shows exactly four user capabilities without exposing raw IDs or URLs', () => {
@@ -140,6 +259,7 @@ describe('SystemStatus', () => {
     expect(screen.getByText('Checked just now')).not.toHaveAttribute('aria-live');
     expect(screen.queryByText(/Demo status refreshed/)).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     value.isRefreshing = true;
     rerender(<SystemStatus />);
     value.isRefreshing = false;
@@ -154,12 +274,35 @@ describe('SystemStatus', () => {
     );
 
     const firstAnnouncementNode = liveRegion.firstChild;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     value.isRefreshing = true;
     rerender(<SystemStatus />);
     value.isRefreshing = false;
     rerender(<SystemStatus />);
 
     expect(liveRegion.firstChild).not.toBe(firstAnnouncementNode);
+  });
+
+  it('does not announce a completed automatic refresh', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const value = contextValue();
+    useSystemStatusMock.mockImplementation(() => value);
+    const { rerender } = render(<SystemStatus />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(300_000);
+      await Promise.resolve();
+    });
+    expect(value.refresh).toHaveBeenCalledTimes(1);
+
+    value.isRefreshing = true;
+    rerender(<SystemStatus />);
+    value.isRefreshing = false;
+    rerender(<SystemStatus />);
+
+    expect(screen.queryByText(/Demo status refreshed/)).not.toBeInTheDocument();
   });
 
   it('shows a safe unavailable state with a Retry action', () => {
@@ -222,6 +365,7 @@ describe('SystemStatus', () => {
     useSystemStatusMock.mockImplementation(() => value);
     const { rerender } = render(<SystemStatus />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     value.isRefreshing = true;
     rerender(<SystemStatus />);
     value.isRefreshing = false;

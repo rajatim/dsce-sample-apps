@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Accordion,
   AccordionItem,
@@ -53,6 +53,7 @@ const STATUS_UNAVAILABLE_OVERALL = {
   title: 'Status unavailable',
   message: 'We could not check the demo status. You may still try the demo.',
 };
+const AUTO_REFRESH_INTERVAL_MS = 300_000;
 
 const EVIDENCE_LABELS = {
   live_check: 'Live check',
@@ -137,28 +138,58 @@ const SystemStatus = () => {
     sequence: 0,
   });
   const previousRefreshing = useRef(isRefreshing);
+  const lastRefreshAttemptRef = useRef(performance.now());
+  const announceNextRefreshRef = useRef(false);
   const hasStatus = Boolean(status);
   const shownOverall = error || isStale
     ? STATUS_UNAVAILABLE_OVERALL
     : status?.overall;
 
   useEffect(() => {
-    if (previousRefreshing.current && !isRefreshing && !error && hasStatus && shownOverall) {
-      setRefreshAnnouncement((current) => ({
-        message: `Demo status refreshed. ${shownOverall.title}.`,
-        sequence: current.sequence + 1,
-      }));
+    if (previousRefreshing.current && !isRefreshing) {
+      if (announceNextRefreshRef.current && !error && hasStatus && shownOverall) {
+        setRefreshAnnouncement((current) => ({
+          message: `Demo status refreshed. ${shownOverall.title}.`,
+          sequence: current.sequence + 1,
+        }));
+      }
+      announceNextRefreshRef.current = false;
     }
     previousRefreshing.current = isRefreshing;
   }, [error, hasStatus, isRefreshing, shownOverall]);
 
-  const handleRefresh = () => {
+  const requestRefresh = useCallback((announce = false) => {
+    lastRefreshAttemptRef.current = performance.now();
+    announceNextRefreshRef.current = announce;
     try {
       Promise.resolve(refresh()).catch(() => {});
     } catch {
       // The provider owns the safe error state shown by this page.
     }
-  };
+  }, [refresh]);
+
+  const handleManualRefresh = useCallback(() => {
+    requestRefresh(true);
+  }, [requestRefresh]);
+
+  const refreshIfDue = useCallback(() => {
+    if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
+    const now = performance.now();
+    if (now - lastRefreshAttemptRef.current < AUTO_REFRESH_INTERVAL_MS) return;
+    requestRefresh();
+  }, [requestRefresh]);
+
+  useEffect(() => {
+    const refreshTimer = window.setInterval(refreshIfDue, AUTO_REFRESH_INTERVAL_MS);
+    document.addEventListener('visibilitychange', refreshIfDue);
+    window.addEventListener('online', refreshIfDue);
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      document.removeEventListener('visibilitychange', refreshIfDue);
+      window.removeEventListener('online', refreshIfDue);
+    };
+  }, [refreshIfDue]);
 
   const capabilities = hasStatus ? capabilityItems(status, isStale) : [];
   const dependencies = hasStatus ? dependencyItems(status, isStale) : [];
@@ -176,7 +207,7 @@ const SystemStatus = () => {
           renderIcon={Renew}
           type="button"
           disabled={isLoading || isRefreshing}
-          onClick={handleRefresh}
+          onClick={handleManualRefresh}
         >
           {error ? 'Retry' : 'Refresh'}
         </Button>
