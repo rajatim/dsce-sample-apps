@@ -19,6 +19,15 @@ class DatabaseConfigTests(unittest.TestCase):
         self.assertEqual(engine.url.drivername, "postgresql+psycopg")
         self.assertTrue(engine.pool._pre_ping)
 
+    def test_postgresql_pool_allows_100_connections_at_peak(self):
+        with patch.dict(os.environ, {"DB_POOL_SIZE": "10", "DB_MAX_OVERFLOW": "90"}):
+            engine = build_engine(
+                "postgresql+psycopg://loan_app_dev:secret@127.0.0.1:5432/loan_poc_dev"
+            )
+
+        self.assertEqual(engine.pool.size(), 10)
+        self.assertEqual(engine.pool._max_overflow, 90)
+
     def test_missing_database_url_keeps_sqlite_rollback_path(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(resolve_database_url(), "sqlite:///./loan_app.db")
