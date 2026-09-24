@@ -423,6 +423,73 @@ class DependencyCheckTests(unittest.TestCase):
         self.assertNotIn("do not expose", "".join(item.model_dump_json() for item in results))
         http.assert_exhausted()
 
+    def test_cpd_wxo_authenticates_and_reads_v1_agent_collection(self):
+        root = "https://cpd.example/orchestrate/cpd-instance/instances/123"
+        environment = self._wxo_environment(
+            WXO_INSTANCE_CLOUD="cpd",
+            WXO_SERVICE_INSTANCE_URL=root,
+            WXO_CPD_USERNAME="kubeadmin",
+        )
+        http = StrictHttp(
+            [
+                (
+                    "POST",
+                    "https://cpd.example/icp4d-api/v1/authorize",
+                    {
+                        "headers": {"Content-Type": "application/json"},
+                        "json": {"username": "kubeadmin", "api_key": "wxo-api-key"},
+                        "timeout": (2, 3),
+                    },
+                    FakeResponse(200, {"token": "private-cpd-token"}),
+                ),
+                (
+                    "GET",
+                    f"{root}/v1/orchestrate/agents",
+                    {
+                        "headers": {"Authorization": "Bearer private-cpd-token"},
+                        "params": [("ids", item) for item in AGENT_IDS],
+                        "timeout": (2, 3),
+                    },
+                    FakeResponse(200, [{"id": item} for item in AGENT_IDS]),
+                ),
+            ]
+        )
+
+        results = check_wxo(environment, http, CHECKED_AT)
+
+        self.assertTrue(all(item.status is StatusValue.READY for item in results))
+        self.assertNotIn("private-cpd-token", "".join(x.model_dump_json() for x in results))
+        http.assert_exhausted()
+
+    def test_cpd_wxo_rejected_auth_does_not_query_agents_or_expose_body(self):
+        root = "https://cpd.example/orchestrate/cpd-instance/instances/123"
+        environment = self._wxo_environment(
+            WXO_INSTANCE_CLOUD="cpd",
+            WXO_SERVICE_INSTANCE_URL=root,
+            WXO_CPD_USERNAME="kubeadmin",
+        )
+        http = StrictHttp(
+            [
+                (
+                    "POST",
+                    "https://cpd.example/icp4d-api/v1/authorize",
+                    {
+                        "headers": {"Content-Type": "application/json"},
+                        "json": {"username": "kubeadmin", "api_key": "wxo-api-key"},
+                        "timeout": (2, 3),
+                    },
+                    FakeResponse(401, {"error": "private provider detail"}),
+                )
+            ]
+        )
+
+        with self.assertLogs("services.status_checks", level="WARNING"):
+            results = check_wxo(environment, http, CHECKED_AT)
+
+        self.assertTrue(all(item.status is StatusValue.UNAVAILABLE for item in results))
+        self.assertNotIn("private provider detail", "".join(x.model_dump_json() for x in results))
+        http.assert_exhausted()
+
     def test_wxo_checks_configured_agents_when_one_agent_id_is_missing(self):
         environment = self._wxo_environment(
             WXO_SERVICE_INSTANCE_URL="https://wxo.example/instances/demo",
@@ -559,15 +626,16 @@ class DependencyCheckTests(unittest.TestCase):
         )
         http.assert_exhausted()
 
-    def test_wxo_resolves_software_instance_root(self):
+    def test_wxo_unsupported_provider_is_unavailable_without_provider_calls(self):
         environment = self._wxo_environment(
             WXO_INSTANCE_ID="instance-id", WXO_INSTANCE_CLOUD="software"
         )
-        root = "https://api.dl.watson-orchestrate.ibm.com/instances/instance-id"
-        http = self._wxo_http(root, FakeResponse(200, {"agents": []}))
+        http = StrictHttp([])
 
-        check_wxo(environment, http, CHECKED_AT)
+        with self.assertLogs("services.status_checks", level="WARNING"):
+            results = check_wxo(environment, http, CHECKED_AT)
 
+        self.assertTrue(all(item.status is StatusValue.UNAVAILABLE for item in results))
         http.assert_exhausted()
 
     def test_wxo_http_failure_marks_service_and_agents_unavailable(self):

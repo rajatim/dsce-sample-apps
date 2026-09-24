@@ -5,6 +5,7 @@ import logging
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -115,7 +116,26 @@ def _wxo_access_token(
     http: Any,
     api_key: str,
     instance_cloud: str,
+    service_url: str = "",
+    username: str = "",
 ) -> str:
+    if instance_cloud == "cpd":
+        parsed_url = urlsplit(service_url)
+        if parsed_url.scheme != "https" or not parsed_url.netloc or not username:
+            raise _HTTPStatusFailure()
+        response = http.post(
+            f"{parsed_url.scheme}://{parsed_url.netloc}/icp4d-api/v1/authorize",
+            headers={"Content-Type": "application/json"},
+            json={"username": username, "api_key": api_key},
+            timeout=HTTP_TIMEOUT,
+        )
+        if response.status_code != 200:
+            raise _HTTPStatusFailure()
+        payload = response.json()
+        token = payload.get("token") if isinstance(payload, Mapping) else None
+        if not isinstance(token, str) or not token:
+            raise _HTTPStatusFailure()
+        return token
     if instance_cloud == "aws":
         response = http.post(
             AWS_IAM_TOKEN_URL,
@@ -132,7 +152,9 @@ def _wxo_access_token(
         if not isinstance(token, str) or not token:
             raise _HTTPStatusFailure()
         return token
-    return _access_token(http, api_key)
+    if instance_cloud == "ibmcloud":
+        return _access_token(http, api_key)
+    raise _HTTPStatusFailure()
 
 
 def check_postgresql(
@@ -280,7 +302,9 @@ def _wxo_root(environment: Mapping[str, str]) -> str:
             f"https://api.{region}.watson-orchestrate.cloud.ibm.com"
             f"/instances/{instance_id}"
         )
-    return f"https://api.dl.watson-orchestrate.ibm.com/instances/{instance_id}"
+    if instance_cloud == "aws":
+        return f"https://api.dl.watson-orchestrate.ibm.com/instances/{instance_id}"
+    raise _HTTPStatusFailure()
 
 
 def _registered_agent_ids(payload: Any) -> set[str]:
@@ -380,14 +404,21 @@ def check_wxo(
             ],
         ]
 
-    root = _wxo_root(environment)
     try:
+        root = _wxo_root(environment)
         instance_cloud = (
             _value(environment, "WXO_INSTANCE_CLOUD") or "ibmcloud"
         ).lower()
-        token = _wxo_access_token(http, api_key, instance_cloud)
+        token = _wxo_access_token(
+            http,
+            api_key,
+            instance_cloud,
+            service_url,
+            _value(environment, "WXO_CPD_USERNAME"),
+        )
+        api_version = "v1" if instance_cloud == "cpd" else "v2"
         response = http.get(
-            f"{root}/v2/orchestrate/agents",
+            f"{root}/{api_version}/orchestrate/agents",
             headers={"Authorization": f"Bearer {token}"},
             params=[("ids", agent_id) for agent_id in agent_ids if agent_id],
             timeout=HTTP_TIMEOUT,
