@@ -5,6 +5,7 @@ import os
 import hashlib
 import hmac
 import json
+import io
 import zipfile
 import yaml
 import shutil
@@ -18,6 +19,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, File, Form, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.datastructures import Headers
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from observability import initialize_observability, trace_workflow
@@ -260,6 +262,30 @@ def stream_fixture_member(archive_name: str):
         with fixture_archive.open(archive_name) as fixture_file:
             while chunk := fixture_file.read(64 * 1024):
                 yield chunk
+
+
+def validate_demo_scenario(scenario: str) -> str:
+    if scenario not in {"pass", "reject"}:
+        raise HTTPException(status_code=422, detail="Invalid demo scenario")
+    return scenario
+
+
+def build_demo_fixture_uploads(scenario: str, file_keys: List[str]):
+    """Build trusted uploads from the bundled POC archive, not client file paths."""
+    validate_demo_scenario(scenario)
+    if not os.path.exists(ZIP_FILE_PATH):
+        raise HTTPException(status_code=404, detail="Sample documents not found")
+
+    uploads = {}
+    with zipfile.ZipFile(ZIP_FILE_PATH) as archive:
+        for file_key in file_keys:
+            archive_name, download_name, media_type = DEMO_FIXTURE_FILES[file_key]
+            uploads[file_key] = UploadFile(
+                filename=f"demo-{scenario}-{download_name}",
+                file=io.BytesIO(archive.read(archive_name)),
+                headers=Headers({"content-type": media_type}),
+            )
+    return uploads
 
 
 def _normalize_upload_path(path: str) -> str:
@@ -675,6 +701,54 @@ async def submit_pdf_form(
 
     return {"status": "success", "message": "PDF application submitted successfully.", "application_id": app_id_str}
 
+@app.post("/submit_demo_form")
+async def submit_demo_application_form(
+    background_tasks: BackgroundTasks,
+    formDataJson: str = Form(...),
+    demoScenario: str = Form(...),
+    db: Session = Depends(database.get_db),
+    current_user: schemas.User = Depends(security.get_current_user),
+):
+    fixtures = build_demo_fixture_uploads(
+        demoScenario, ["idProof", "incomeProof", "addressProof", "ssn"]
+    )
+    return await submit_application_form(
+        background_tasks=background_tasks,
+        formDataJson=formDataJson,
+        idProof=fixtures["idProof"],
+        incomeProof=fixtures["incomeProof"],
+        addressProof=fixtures["addressProof"],
+        additionalDocs=[fixtures["ssn"]],
+        demoScenario=demoScenario,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@app.post("/submit_demo_pdf")
+async def submit_demo_pdf_form(
+    background_tasks: BackgroundTasks,
+    demoScenario: str = Form(...),
+    db: Session = Depends(database.get_db),
+    current_user: schemas.User = Depends(security.get_current_user),
+):
+    fixtures = build_demo_fixture_uploads(
+        demoScenario,
+        ["applicationPdf", "idProof", "incomeProof", "addressProof", "ssn"],
+    )
+    return await submit_pdf_form(
+        background_tasks=background_tasks,
+        applicationPdf=fixtures["applicationPdf"],
+        idProof=fixtures["idProof"],
+        incomeProof=fixtures["incomeProof"],
+        addressProof=fixtures["addressProof"],
+        additionalDocs=[fixtures["ssn"]],
+        demoScenario=demoScenario,
+        db=db,
+        current_user=current_user,
+    )
+
+
 @app.get("/get_logs/{app_id_str}")
 async def get_application_logs(
     app_id_str: str,
@@ -701,6 +775,23 @@ async def download_file():
         media_type="application/zip",
         filename="sample_documents.zip"
     )
+
+
+@app.get("/demo_fixtures/{scenario}/manifest")
+async def get_demo_fixture_manifest(scenario: str):
+    validate_demo_scenario(scenario)
+    if not os.path.exists(ZIP_FILE_PATH):
+        raise HTTPException(status_code=404, detail="Sample documents not found")
+    return {
+        "scenario": scenario,
+        "files": {
+            file_key: {
+                "filename": f"demo-{scenario}-{download_name}",
+                "content_type": media_type,
+            }
+            for file_key, (_, download_name, media_type) in DEMO_FIXTURE_FILES.items()
+        },
+    }
 
 
 @app.get("/demo_fixtures/{scenario}/{file_key}")

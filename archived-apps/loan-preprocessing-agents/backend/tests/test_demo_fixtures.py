@@ -43,6 +43,48 @@ class DemoFixtureTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_manifest_returns_metadata_without_document_bytes(self):
+        response = self.client.get("/demo_fixtures/pass/manifest")
+
+        self.assertEqual(response.status_code, 200)
+        manifest = response.json()
+        self.assertEqual(manifest["scenario"], "pass")
+        self.assertEqual(set(manifest["files"]), {
+            "applicationPdf", "idProof", "incomeProof", "addressProof", "ssn"
+        })
+        self.assertEqual(manifest["files"]["idProof"], {
+            "filename": "demo-pass-ID-Doc.png", "content_type": "image/png"
+        })
+        self.assertEqual(set(manifest["files"]["applicationPdf"]), {
+            "filename", "content_type"
+        })
+
+    def test_reject_manifest_and_invalid_scenario_have_distinct_results(self):
+        reject = self.client.get("/demo_fixtures/reject/manifest")
+        invalid = self.client.get("/demo_fixtures/other/manifest")
+
+        self.assertEqual(reject.status_code, 200)
+        self.assertEqual(
+            reject.json()["files"]["applicationPdf"]["filename"],
+            "demo-reject-Loan-Application-Form.pdf",
+        )
+        self.assertEqual(invalid.status_code, 422)
+
+    def test_demo_submission_routes_require_authentication(self):
+        form = self.client.post("/submit_demo_form", data={
+            "demoScenario": "pass", "formDataJson": "{}"
+        })
+        pdf = self.client.post("/submit_demo_pdf", data={"demoScenario": "pass"})
+
+        self.assertEqual(form.status_code, 401)
+        self.assertEqual(pdf.status_code, 401)
+
+    def test_manifest_reports_missing_archive(self):
+        with patch.object(main, "ZIP_FILE_PATH", "/missing/demo-fixtures.zip"):
+            response = self.client.get("/demo_fixtures/pass/manifest")
+
+        self.assertEqual(response.status_code, 404)
+
     def test_fixture_endpoint_streams_without_loading_the_whole_member(self):
         with patch.object(
             zipfile.ZipFile,

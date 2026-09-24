@@ -264,6 +264,56 @@ class ApplicationRecordRepositoryTests(unittest.TestCase):
             hashlib.sha256(b"application form").hexdigest(),
         )
 
+    def test_demo_form_uses_server_documents_and_persists_records(self):
+        background_tasks = Mock()
+        with (
+            patch.object(main, "save_upload_file"),
+            patch.object(main, "get_cos_client", return_value=Mock()),
+            patch.object(main, "UPLOAD_DIRECTORY", str(Path(self.temporary_directory.name) / "uploads")),
+        ):
+            result = asyncio.run(main.submit_demo_application_form(
+                background_tasks=background_tasks,
+                formDataJson=json.dumps({"firstName": "Tom", "lastName": "Miller", "loanType": "Home Renovation", "loanAmount": 50000}),
+                demoScenario="pass",
+                db=self.session,
+                current_user=SimpleNamespace(id=1, username="record-owner"),
+            ))
+
+        application = self.session.query(Application).filter_by(app_id_str=result["application_id"]).one()
+        documents = self.session.query(ApplicationDocument).filter_by(application_id=application.id).all()
+        self.assertEqual({document.document_role for document in documents}, {"idProof", "incomeProof", "addressProof", "ssn"})
+        self.assertTrue(all(document.original_filename.startswith("demo-pass-") and document.size_bytes > 0 for document in documents))
+
+    def test_demo_pdf_uses_server_documents_and_persists_records(self):
+        with (
+            patch.object(main, "save_upload_file"),
+            patch.object(main, "get_cos_client", return_value=Mock()),
+            patch.object(main, "UPLOAD_DIRECTORY", str(Path(self.temporary_directory.name) / "uploads")),
+            patch.object(main, "extract_key_value_pairs") as extract,
+        ):
+            result = asyncio.run(main.submit_demo_pdf_form(
+                background_tasks=Mock(), demoScenario="pass", db=self.session,
+                current_user=SimpleNamespace(id=1, username="record-owner"),
+            ))
+
+        application = self.session.query(Application).filter_by(app_id_str=result["application_id"]).one()
+        documents = self.session.query(ApplicationDocument).filter_by(application_id=application.id).all()
+        self.assertEqual(len(documents), 5)
+        self.assertTrue(all(document.original_filename.startswith("demo-pass-") and document.size_bytes > 0 for document in documents))
+        extract.assert_not_called()
+
+    def test_invalid_demo_scenario_creates_no_application(self):
+        original_count = self.session.query(Application).count()
+        with self.assertRaises(HTTPException) as error:
+            asyncio.run(main.submit_demo_application_form(
+                background_tasks=Mock(), formDataJson="{}", demoScenario="other",
+                db=self.session,
+                current_user=SimpleNamespace(id=1, username="record-owner"),
+            ))
+
+        self.assertEqual(error.exception.status_code, 422)
+        self.assertEqual(self.session.query(Application).count(), original_count)
+
     def test_cos_upload_failure_does_not_persist_document_metadata(self):
         cos_client = COSClient.__new__(COSClient)
         cos_client._cos = Mock()
