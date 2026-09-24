@@ -4,6 +4,7 @@ import json
 import logging
 import time
 import requests
+from urllib.parse import urlsplit
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
 from datetime import date, datetime, timezone
@@ -20,6 +21,7 @@ DOCUMENT_VALIDATION_AGENT_ID = os.getenv("DOCUMENT_VALIDATION_AGENT_ID")
 FINAL_DECISION_AGENT_ID = os.getenv("FINAL_DECISION_AGENT_ID")
 WXO_INSTANCE_CLOUD = os.getenv("WXO_INSTANCE_CLOUD", "ibmcloud")
 WXO_INSTANCE_CLOUD_REGION = os.getenv("WXO_INSTANCE_CLOUD_REGION", "us-south")
+WXO_CPD_USERNAME = os.getenv("WXO_CPD_USERNAME")
 
 if WXO_SERVICE_INSTANCE_URL:
     base_url = f"{WXO_SERVICE_INSTANCE_URL.rstrip('/')}/v1/orchestrate"
@@ -102,7 +104,32 @@ def _record_agent_failure(
 
 def get_bearer_token(API_KEY) -> str:
     """Obtain bearer token from API key"""
-    if WXO_INSTANCE_CLOUD == "aws":
+    if WXO_INSTANCE_CLOUD == "cpd":
+        service_url = urlsplit(WXO_SERVICE_INSTANCE_URL or "")
+        if (
+            not API_KEY
+            or not WXO_CPD_USERNAME
+            or service_url.scheme != "https"
+            or not service_url.netloc
+        ):
+            raise ValueError("CPD WXO authentication is not configured")
+        platform_url = f"{service_url.scheme}://{service_url.netloc}"
+        try:
+            response = requests.post(
+                f"{platform_url}/icp4d-api/v1/authorize",
+                headers={"Content-Type": "application/json"},
+                json={"username": WXO_CPD_USERNAME, "api_key": API_KEY},
+                timeout=(10, 20),
+            )
+            if response.status_code != 200:
+                raise RuntimeError("CPD authentication failed")
+            payload = response.json()
+            token = payload.get("token") if isinstance(payload, dict) else None
+        except (requests.RequestException, ValueError):
+            raise RuntimeError("CPD authentication failed") from None
+        if not isinstance(token, str) or not token:
+            raise RuntimeError("CPD authentication failed")
+    elif WXO_INSTANCE_CLOUD == "aws":
         url = "https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token"
 
         headers = {
@@ -122,6 +149,8 @@ def get_bearer_token(API_KEY) -> str:
         if response.status_code != 200:
             raise Exception("Non-200 response: " + str(response.text))
         token = response.json()["access_token"]
+    else:
+        raise ValueError("Unsupported WXO provider")
     return token
 
 
