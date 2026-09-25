@@ -10,6 +10,7 @@ vi.mock('../../contexts/useSystemStatus', () => ({
 }));
 
 import SystemStatus from './SystemStatus';
+import i18n from '../../i18n/config';
 
 const readyStatus = {
   ...readyContract,
@@ -63,7 +64,8 @@ const contextValue = (overrides = {}) => ({
 });
 
 describe('SystemStatus', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US');
     useSystemStatusMock.mockReset();
     useSystemStatusMock.mockReturnValue(contextValue());
   });
@@ -422,6 +424,70 @@ describe('SystemStatus', () => {
     expect(within(validator).queryByText(/^Checked at /)).not.toBeInTheDocument();
   });
 
+  it('shows a recent watsonx quota problem as blocked work with support identifiers', async () => {
+    await i18n.changeLanguage('zh-TW');
+    const problem = {
+      category: 'provider_quota',
+      service: 'watsonx_ai',
+      stage: 'document_processing_agent',
+      provider_code: 'token_quota_reached',
+      http_status: 403,
+      trace_id: 'trace-status-456',
+      documentation_url: 'https://cloud.ibm.com/apidocs/watsonx-ai#text-chat',
+      retryable_now: false,
+      action: 'check_service_configuration',
+    };
+    useSystemStatusMock.mockReturnValue(contextValue({
+      status: {
+        ...readyStatus,
+        overall: { status: 'limited', title: 'ignored', message: 'ignored' },
+        capabilities: readyStatus.capabilities.map((capability) => (
+          ['process_documents', 'generate_decision'].includes(capability.id)
+            ? { ...capability, status: 'limited', problem }
+            : capability
+        )),
+        dependencies: [
+          {
+            id: 'watsonx_ai',
+            status: 'limited',
+            evidence: 'recent_execution',
+            message: 'watsonx.ai is reachable, but the latest model request failed.',
+            checked_at: '2026-09-06T03:54:39Z',
+            last_success_at: null,
+            last_failure_at: '2026-09-06T03:52:12Z',
+            problem,
+          },
+          {
+            id: 'document_processing_agent',
+            status: 'limited',
+            evidence: 'recent_execution',
+            message: 'Agent is reachable, but its most recent run failed.',
+            checked_at: '2026-09-06T03:54:39Z',
+            last_success_at: null,
+            last_failure_at: '2026-09-06T03:52:12Z',
+            problem,
+          },
+        ],
+      },
+      checkedAtLabel: '剛剛檢查',
+    }));
+
+    render(<SystemStatus />);
+
+    const capabilities = screen.getByRole('list', { name: 'Demo 功能' });
+    const processDocuments = within(capabilities)
+      .getByRole('heading', { name: '處理文件' })
+      .closest('li');
+    expect(within(processDocuments).getByText(/目前無法完成文件處理/)).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '技術詳細資料' }));
+    const watsonx = screen.getByRole('listitem', { name: /watsonx.ai/ });
+    expect(within(watsonx).getByText('token_quota_reached')).toBeVisible();
+    expect(within(watsonx).getByText('403 Forbidden')).toBeVisible();
+    expect(within(watsonx).getByText('trace-status-456')).toBeVisible();
+    expect(within(watsonx).getByText(/最近一次模型請求因額度或服務關聯問題失敗/)).toBeVisible();
+  });
+
   it('states that OpenLLMetry does not affect demo availability', () => {
     render(<SystemStatus />);
     fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
@@ -430,5 +496,26 @@ describe('SystemStatus', () => {
     expect(within(openLLMetryRow).getByText('Does not affect demo availability.')).toBeVisible();
     expect(within(openLLMetryRow).getByText('Not configured')).toBeVisible();
     expect(openLLMetryRow.querySelector('svg')).not.toBeNull();
+  });
+
+  it('localizes known status presentation without refreshing or exposing internal data', async () => {
+    await i18n.changeLanguage('zh-TW');
+    const refresh = vi.fn().mockResolvedValue(readyStatus);
+    useSystemStatusMock.mockReturnValue(contextValue({
+      refresh,
+      checkedAtLabel: '剛剛檢查',
+    }));
+
+    render(<SystemStatus />);
+    expect(screen.getByRole('heading', { name: 'Demo 已就緒' })).toBeVisible();
+    expect(screen.getByText('您可以送出及查看貸款申請。')).toBeVisible();
+    expect(screen.getByText('線上表單與 PDF 上傳皆可使用。')).toBeVisible();
+    expect(screen.getByRole('list', { name: 'Demo 功能' })).toBeVisible();
+    expect(screen.getByText('剛剛檢查')).toBeVisible();
+    expect(refresh).not.toHaveBeenCalled();
+
+    await i18n.changeLanguage('zh-CN');
+    expect(screen.getByRole('heading', { name: 'Demo 已就绪' })).toBeVisible();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

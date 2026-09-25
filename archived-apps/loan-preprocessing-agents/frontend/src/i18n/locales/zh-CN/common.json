@@ -1,0 +1,38 @@
+{
+  "app": { "ariaLabel": "贷款申请平台" },
+  "brand": { "platformLabel": "金融" },
+  "language": {
+    "label": "语言",
+    "options": {
+      "zh-TW": "繁體中文（台灣）",
+      "zh-CN": "简体中文",
+      "en-US": "English (US)",
+      "en-GB": "English (UK)"
+    }
+  },
+  "menu": { "open": "打开导航菜单", "close": "关闭导航菜单" },
+  "navigation": {
+    "main": "主导航",
+    "mobile": "移动端导航",
+    "apply": "申请",
+    "applications": "我的申请",
+    "calculator": "贷款计算器",
+    "status": "Demo 状态",
+    "backToDsce": "返回 DSCE 展示台"
+  },
+  "auth": {
+    "unavailable": "Demo 服务不可用", "tryAgain": "重试", "preparing": "正在准备贷款 Demo",
+    "preparingDescription": "正在设置示例工作区，通常只需要一点时间。", "preparingLabel": "正在准备 Demo",
+    "errors": { "unreachable": "无法连接到 Demo 服务。", "missingToken": "Demo 服务未返回访问令牌。" }
+  },
+  "capabilityNotice": {
+    "labels": { "submit_application": "提交申请", "process_documents": "文档处理", "generate_decision": "贷款决定", "view_applications": "申请记录", "fallback": "此 Demo 功能" },
+    "title": "{{label}}可能受到影响", "fallback": "{{label}}可能受到影响。", "viewStatus": "查看 Demo 状态",
+    "messages": {
+      "submit_application": { "limited": "提交申请可能会延迟。", "not_configured": "此 Demo 尚未配置提交申请功能。", "unavailable": "当前无法提交申请。" },
+      "process_documents": { "limited": "文档处理可能会延迟。", "not_configured": "此 Demo 尚未配置文档处理功能。", "unavailable": "文档处理当前不可用。" },
+      "generate_decision": { "limited": "贷款决定可能会延迟。", "not_configured": "此 Demo 尚未配置贷款决定功能。", "unavailable": "贷款决定当前不可用。" },
+      "view_applications": { "limited": "申请记录可能会延迟。", "not_configured": "此 Demo 尚未配置申请记录功能。", "unavailable": "申请记录当前不可用。" }
+    }
+  }
+}

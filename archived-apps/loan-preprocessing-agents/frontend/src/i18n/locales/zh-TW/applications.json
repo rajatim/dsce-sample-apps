@@ -1,0 +1,37 @@
+{
+  "page": {
+    "heading": "我的申請",
+    "intro": "以下是您已送出的貸款申請。",
+    "subtitle": "將游標移到資料列並點選，即可查看 Agent 執行的詳細步驟。",
+    "scrollHint": "左右滑動即可查看狀態、詳細資料與送出日期。"
+  },
+  "loading": "正在載入申請...",
+  "errors": {
+    "title": "無法載入申請",
+    "fetch": "無法取得申請資料。",
+    "fallback": "請稍後再試。"
+  },
+  "empty": {
+    "heading": "目前沒有申請",
+    "description": "送出的貸款申請會顯示在這裡。"
+  },
+  "headers": {
+    "applicationId": "申請編號",
+    "applicantName": "申請人姓名",
+    "loanType": "貸款類型",
+    "amount": "金額",
+    "status": "狀態",
+    "details": "詳細資料",
+    "submittedDate": "送出日期"
+  },
+  "viewDetails": "查看處理詳細資料",
+  "statuses": {
+    "approved": "已核准",
+    "passed": "已通過",
+    "pending": "等待中",
+    "processing": "處理中",
+    "retrying": "重試中",
+    "rejected": "已拒絕",
+    "processingFailed": "處理失敗"
+  }
+}

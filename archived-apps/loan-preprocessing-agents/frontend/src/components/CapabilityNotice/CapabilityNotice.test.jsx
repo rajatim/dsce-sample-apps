@@ -1,12 +1,13 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { useSystemStatusMock } = vi.hoisted(() => ({ useSystemStatusMock: vi.fn() }));
 
 vi.mock('../../contexts/useSystemStatus', () => ({ useSystemStatus: useSystemStatusMock }));
 
 import CapabilityNotice from './CapabilityNotice';
+import i18n from '../../i18n/config';
 
 const setCapabilities = (capabilities, overrides = {}) => {
   useSystemStatusMock.mockReturnValue({
@@ -18,6 +19,9 @@ const setCapabilities = (capabilities, overrides = {}) => {
 };
 
 describe('CapabilityNotice', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US');
+  });
   it('renders nothing when all requested capabilities are ready', () => {
     setCapabilities([{ id: 'submit_application', status: 'ready' }]);
     const { container } = render(<CapabilityNotice capabilityIds={['submit_application']} />);
@@ -73,5 +77,14 @@ describe('CapabilityNotice', () => {
     );
     const { container } = render(<CapabilityNotice capabilityIds={['submit_application']} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('localizes safe capability copy without rendering backend details', async () => {
+    await i18n.changeLanguage('zh-TW');
+    setCapabilities([{ id: 'process_documents', status: 'unavailable', message: 'Private backend detail' }]);
+    render(<CapabilityNotice capabilityIds={['process_documents']} />);
+    expect(screen.getByText('文件處理目前無法使用。')).toBeVisible();
+    expect(screen.getByRole('link', { name: '查看 Demo 狀態' })).toHaveAttribute('href', '/status');
+    expect(screen.queryByText('Private backend detail')).not.toBeInTheDocument();
   });
 });

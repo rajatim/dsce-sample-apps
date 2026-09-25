@@ -59,6 +59,7 @@ vi.mock('@carbon/react', () => ({
 }));
 
 import MyApplications from './MyApplications';
+import i18n from '../../i18n/config';
 
 const application = (status, overrides = {}) => ({
   app_id_str: `app-${status}`,
@@ -84,9 +85,10 @@ const flushRequests = async () => {
 };
 
 describe('MyApplications live statuses', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    await i18n.changeLanguage('en-US');
     vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:8000');
   });
 
@@ -202,5 +204,25 @@ describe('MyApplications live statuses', () => {
     expect(
       screen.queryByText('A very long validation explanation that belongs in the side panel.')
     ).not.toBeInTheDocument();
+  });
+
+  it('localizes known presentation without mutating API data or unknown statuses', async () => {
+    await i18n.changeLanguage('zh-TW');
+    const source = [
+      application('Passed'),
+      application('Manual review required', { app_id_str: 'app-manual' }),
+    ];
+    const before = structuredClone(source);
+    authFetchMock.mockResolvedValue(apiResponse(source));
+
+    render(<MyApplications />);
+    await flushRequests();
+
+    expect(screen.getByRole('heading', { name: '我的申請' })).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: '申請編號' })).toBeVisible();
+    expect(screen.getByText('已通過')).toBeVisible();
+    expect(screen.getByText('Manual review required')).toBeVisible();
+    expect(screen.getAllByText('查看處理詳細資料')).toHaveLength(2);
+    expect(source).toEqual(before);
   });
 });

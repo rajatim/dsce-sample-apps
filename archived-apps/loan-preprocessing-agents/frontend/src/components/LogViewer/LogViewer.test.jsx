@@ -29,6 +29,7 @@ vi.mock('@carbon/react/icons', () => ({
 }));
 
 import LogViewer from './LogViewer';
+import i18n from '../../i18n/config';
 
 const apiResponse = (logs) => ({
   ok: true,
@@ -48,8 +49,9 @@ const application = (status, validationComments = '') => ({
 const log = (stage, data, timestamp) => ({ stage, data, timestamp });
 
 describe('LogViewer application outcomes', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await i18n.changeLanguage('en-US');
     vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:8000');
   });
 
@@ -85,9 +87,9 @@ describe('LogViewer application outcomes', () => {
 
     const technicalDetails = screen.getByText('Technical details').closest('details');
     expect(technicalDetails).not.toHaveAttribute('open');
-    within(technicalDetails)
-      .getAllByRole('tree', { name: 'Structured JSON data' })
-      .forEach((tree) => expect(tree).not.toBeVisible());
+    expect(
+      within(technicalDetails).queryByRole('tree', { name: 'Structured JSON data' })
+    ).not.toBeInTheDocument();
   });
 
   it('renders nested tool JSON as an expandable tree instead of escaped text', async () => {
@@ -109,6 +111,7 @@ describe('LogViewer application outcomes', () => {
 
     render(<LogViewer application={application('Processing Failed')} />);
     fireEvent.click(await screen.findByText('Technical details'));
+    fireEvent.click(screen.getByRole('button', { name: 'View raw event' }));
 
     expect(screen.getByRole('tree', { name: 'Structured JSON data' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Expand all JSON' })).toBeVisible();
@@ -165,6 +168,80 @@ describe('LogViewer application outcomes', () => {
     expect(screen.getByLabelText('Document processing: Failed')).toBeVisible();
     expect(screen.getByLabelText('Document validation: Not started')).toBeVisible();
     expect(screen.getByLabelText('Final decision: Not started')).toBeVisible();
+  });
+
+  it('reads invocation messages from persisted event objects', async () => {
+    authFetchMock.mockResolvedValue(apiResponse([
+      log(
+        'invoke_agent',
+        { message: 'Invoking Document Processor Agent' },
+        '2026-09-06T03:51:46Z'
+      ),
+    ]));
+
+    render(<LogViewer application={application('Processing Failed')} />);
+    fireEvent.click(await screen.findByText('Technical details'));
+
+    expect(screen.getByRole('heading', {
+      name: 'Invoking Document Processor Agent',
+    })).toBeVisible();
+    expect(screen.getByLabelText('Document processing: Failed')).toBeVisible();
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
+  });
+
+  it('explains a watsonx quota failure in zh-TW and exposes safe support identifiers', async () => {
+    await i18n.changeLanguage('zh-TW');
+    const clipboardWrite = vi.fn();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWrite },
+    });
+    const failedApplication = {
+      ...application(
+        'Processing Failed',
+        '- **error**: Application processing failed. Please retry.'
+      ),
+      processing_failure: {
+        category: 'provider_quota',
+        service: 'watsonx_ai',
+        stage: 'document_processing_agent',
+        provider_code: 'token_quota_reached',
+        http_status: 403,
+        trace_id: 'trace-application-123',
+        documentation_url: 'https://cloud.ibm.com/apidocs/watsonx-ai#text-chat',
+        retryable_now: false,
+        action: 'check_service_configuration',
+      },
+    };
+    authFetchMock.mockImplementation(async (url) => {
+      if (url.endsWith('/applications/app_123')) {
+        return { ok: true, json: async () => failedApplication };
+      }
+      return apiResponse([
+        log('invoke_agent', 'Invoking Document Processor Agent', '2026-09-06T03:51:46Z'),
+      ]);
+    });
+
+    render(<LogViewer application={application('Processing Failed')} />);
+
+    expect(await screen.findByRole('heading', {
+      name: 'watsonx.ai 額度或服務關聯有問題',
+    })).toBeVisible();
+    expect(screen.getByText(/文件已成功上傳，但文件處理 Agent 呼叫模型時遭拒絕/)).toBeVisible();
+    expect(screen.getByText(/這不是貸款遭拒，也不是文件內容錯誤/)).toBeVisible();
+    expect(screen.getByText('文件處理 Agent')).toBeVisible();
+    expect(screen.getByText('token_quota_reached')).toBeVisible();
+    expect(screen.getByText('403 Forbidden')).toBeVisible();
+    expect(screen.getByText('trace-application-123')).toBeVisible();
+    expect(screen.getByRole('link', { name: '查看 IBM API 文件' })).toHaveAttribute(
+      'href',
+      'https://cloud.ibm.com/apidocs/watsonx-ai#text-chat'
+    );
+    fireEvent.click(screen.getByRole('button', { name: '複製 Trace ID' }));
+    expect(clipboardWrite).toHaveBeenCalledWith('trace-application-123');
+    expect(screen.getByText(/服務設定或額度修復前，重新處理仍會失敗/)).toBeVisible();
+    expect(document.body).not.toHaveTextContent('/shared/');
+    expect(document.body).not.toHaveTextContent('provider-secret');
   });
 
   it('distinguishes an active retry from a terminal failure', async () => {
@@ -323,5 +400,52 @@ describe('LogViewer application outcomes', () => {
     expect(onApplicationChange).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'Pending' })
     );
+  });
+
+  it('localizes diagnostic controls while preserving and copying raw data in zh-TW', async () => {
+    await i18n.changeLanguage('zh-TW');
+    const clipboardWrite = vi.fn();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWrite },
+    });
+    const rawAgentError = 'I have encountered an error. Please try again.';
+    const rawToolData = {
+      message: JSON.stringify({
+        name: 'classify_document',
+        args: { filename: '/data/uploads/app_123/demo-pass-ID-Doc.png' },
+      }),
+    };
+    authFetchMock.mockResolvedValue(apiResponse([
+      log('tool_call', rawToolData, '2026-09-01T06:15:39Z'),
+      log('agent_response', rawAgentError, '2026-09-01T06:15:42Z'),
+    ]));
+
+    render(<LogViewer application={application('Processing Failed')} />);
+    fireEvent.click(await screen.findByText('技術詳細資料'));
+
+    const rawEventButtons = screen.getAllByRole('button', { name: '查看原始事件' });
+    expect(rawEventButtons).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: '展開所有 JSON' })).not.toBeInTheDocument();
+    expect(screen.queryByText(rawAgentError)).not.toBeInTheDocument();
+
+    fireEvent.click(rawEventButtons[0]);
+    expect(screen.getByRole('button', { name: '隱藏原始事件' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '展開所有 JSON' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '複製 JSON' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '展開所有 JSON' }));
+    expect(screen.getByText(/classify_document/)).toBeVisible();
+    expect(screen.getByText(/demo-pass-ID-Doc\.png/)).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '複製 JSON' }));
+    expect(clipboardWrite).toHaveBeenCalledWith(JSON.stringify({
+      message: {
+        name: 'classify_document',
+        args: { filename: '/data/uploads/app_123/demo-pass-ID-Doc.png' },
+      },
+    }, null, 2));
+
+    fireEvent.click(screen.getByRole('button', { name: '查看原始事件' }));
+    expect(screen.getByText(rawAgentError)).toBeVisible();
   });
 });

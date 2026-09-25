@@ -7,3 +7,79 @@
   /* This ensures content starts below the fixed header */
   padding-top: 3rem; /* The height of the Carbon header */
 }
+
+.desktop-language-switcher {
+  display: flex;
+}
+
+.dsce-return-link {
+  align-items: center;
+  block-size: 3rem;
+  border-inline-start: 1px solid #e0e0e0;
+  color: #161616;
+  display: flex;
+  gap: 0.5rem;
+  margin-inline-start: auto;
+  padding-inline: 1rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dsce-return-link:hover {
+  background: #e8e8e8;
+  color: #161616;
+}
+
+.dsce-return-link:focus {
+  outline: 2px solid #0f62fe;
+  outline-offset: -2px;
+}
+
+.mobile-dsce-return {
+  border-block-end: 1px solid #e0e0e0;
+  list-style: none;
+}
+
+.mobile-dsce-return a {
+  align-items: center;
+  color: #161616;
+  display: flex;
+  gap: 0.75rem;
+  min-block-size: 3rem;
+  padding-inline: 1rem;
+  text-decoration: none;
+}
+
+.mobile-dsce-return a:hover {
+  background: #e8e8e8;
+}
+
+.mobile-language-switcher {
+  display: none;
+  list-style: none;
+}
+
+.mobile-language-switcher .loan-language-switcher {
+  align-items: stretch;
+  background: #262626;
+  flex-direction: column;
+  padding-block: 0.75rem;
+}
+
+.mobile-language-switcher .loan-language-switcher select {
+  inline-size: 100%;
+}
+
+@media (max-width: 65.98rem) {
+  .desktop-language-switcher {
+    display: none;
+  }
+
+  .dsce-return-link--desktop {
+    display: none;
+  }
+
+  .mobile-language-switcher {
+    display: block;
+  }
+}

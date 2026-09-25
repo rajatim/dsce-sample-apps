@@ -1,0 +1,163 @@
+{
+  "method": {
+    "heading": "選擇申請方式",
+    "subtitle": "選擇您要如何送出貸款申請",
+    "form": { "title": "線上填寫申請表", "description": "在線上逐步完成申請表" },
+    "pdf": { "title": "上傳已填寫的 PDF", "description": "上傳已完成的 PDF 申請表" }
+  },
+  "steps": {
+    "personal": "個人資料",
+    "employment": "就業資料",
+    "loan": "貸款資料",
+    "financial": "財務資料",
+    "documents": "文件上傳",
+    "review": "檢查並送出",
+    "pdfUpload": "上傳申請表",
+    "supportingDocuments": "證明文件"
+  },
+  "header": {
+    "heading": "貸款申請",
+    "formSubtitle": "填寫下列表格以申請貸款",
+    "pdfSubtitle": "上傳已完成的申請表及證明文件",
+    "changeMethod": "變更申請方式"
+  },
+  "preset": {
+    "eyebrow": "POC 快速測試",
+    "heading": "載入完整測試申請",
+    "description": "選擇預期結果；系統會填入欄位、附上範例文件並帶您前往檢查頁。",
+    "loadPass": "載入通過範例",
+    "loadingPass": "正在載入通過範例…",
+    "loadReject": "載入拒絕範例",
+    "loadingReject": "正在載入拒絕範例…",
+    "passLoaded": "已載入 POC 通過範例",
+    "rejectLoaded": "已載入 POC 拒絕範例",
+    "loadedSubtitle": "請檢查準備好的資料，確認後再送出。",
+    "loadError": "無法載入 POC 範例"
+  },
+  "sections": {
+    "personal": "個人資料",
+    "employment": "就業資料",
+    "loan": "貸款資料",
+    "financial": "財務資料"
+  },
+  "fields": {
+    "firstName": "名字 *",
+    "lastName": "姓氏 *",
+    "email": "電子郵件 *",
+    "phone": "電話號碼 *",
+    "dateOfBirth": "出生日期 *",
+    "datePlaceholder": "年/月/日",
+    "ssn": "社會安全號碼 *",
+    "maritalStatus": "婚姻狀態 *",
+    "employmentStatus": "就業狀態 *",
+    "employer": "雇主名稱 *",
+    "jobTitle": "職稱 *",
+    "monthlyIncome": "每月收入 *",
+    "employmentDuration": "您在目前雇主任職多久？",
+    "loanType": "貸款類型 *",
+    "loanAmount": "申請貸款金額 *",
+    "loanPurpose": "貸款用途 *",
+    "loanPurposeHelp": "請說明您計畫如何使用這筆貸款",
+    "downPayment": "自備款（如適用）",
+    "monthlyExpenses": "每月支出 *",
+    "monthlyExpensesHelp": "包括房租、水電、餐飲、交通等。",
+    "creditScore": "信用分數範圍 *",
+    "additionalInformation": "其他資料",
+    "bankingRelationship": "我目前與本機構有銀行往來關係",
+    "hasOtherLoans": "我目前另有尚未清償的貸款"
+  },
+  "options": {
+    "marital": { "placeholder": "選擇婚姻狀態", "single": "單身", "married": "已婚", "divorced": "離婚", "widowed": "喪偶" },
+    "employment": { "placeholder": "選擇就業狀態", "employed": "受僱", "selfEmployed": "自營", "unemployed": "待業", "retired": "退休", "student": "學生" },
+    "duration": { "placeholder": "選擇期間", "lessThanOne": "未滿 1 年", "oneToTwo": "1–2 年", "twoToFive": "2–5 年", "fiveToTen": "5–10 年", "moreThanTen": "超過 10 年" },
+    "loanType": { "placeholder": "選擇貸款類型", "personal": "個人貸款", "auto": "汽車貸款", "home": "房屋貸款", "business": "企業貸款", "homeRenovation": "房屋裝修" },
+    "credit": { "excellent": "極佳（750 以上）", "good": "良好（700–749）", "fair": "普通（650–699）", "poor": "不佳（低於 650）", "unknown": "不清楚" }
+  },
+  "documents": {
+    "heading": "文件上傳",
+    "subtitle": "請上傳完成申請所需的文件",
+    "chooseFile": "選擇檔案",
+    "clearFile": "清除檔案",
+    "fileUploaded": "已上傳檔案：",
+    "names": { "applicationPdf": "PDF 申請表", "idProof": "身分證明", "incomeProof": "收入證明", "addressProof": "地址證明", "ssn": "社會安全號碼文件" },
+    "idProof": { "legend": "身分證明 *", "upload": "上傳身分證明（PDF、JPG、PNG）" },
+    "incomeProof": { "legend": "收入證明 *", "upload": "上傳收入證明（PDF、JPG、PNG）" },
+    "addressProof": { "legend": "地址證明 *", "upload": "上傳地址證明（PDF、JPG、PNG）" },
+    "additional": { "legend": "其他文件（選填）", "upload": "上傳其他文件（PDF、JPG、PNG）" }
+  },
+  "pdf": {
+    "heading": "上傳申請 PDF",
+    "subtitle": "請上傳已完成的貸款申請表",
+    "legend": "PDF 申請表 *",
+    "chooseFile": "選擇 PDF 檔案",
+    "upload": "上傳已填寫的申請表（僅限 PDF）",
+    "uploaded": "已上傳 PDF 申請表："
+  },
+  "review": {
+    "heading": "檢查您的申請",
+    "name": "姓名",
+    "email": "電子郵件",
+    "phone": "電話",
+    "maritalStatus": "婚姻狀態",
+    "employment": "就業資料",
+    "status": "狀態",
+    "employer": "雇主",
+    "jobTitle": "職稱",
+    "monthlyIncome": "每月收入",
+    "loanDetails": "貸款明細",
+    "type": "類型",
+    "amount": "金額",
+    "purpose": "用途",
+    "downPayment": "自備款",
+    "financialInformation": "財務資料",
+    "monthlyExpenses": "每月支出",
+    "creditScore": "信用分數",
+    "uploadedDocuments": "已上傳文件",
+    "applicationPdf": "PDF 申請表",
+    "idProof": "身分證明",
+    "incomeProof": "收入證明",
+    "addressProof": "地址證明",
+    "additionalDocuments": "其他文件",
+    "usdAmount": "US${{value}}"
+  },
+  "agreements": {
+    "heading": "必要同意事項",
+    "terms": "我同意條款與條件",
+    "credit": "我授權進行信用查核"
+  },
+  "validation": {
+    "firstName": "名字為必填",
+    "lastName": "姓氏為必填",
+    "email": "電子郵件為必填",
+    "phone": "電話號碼為必填",
+    "dateOfBirth": "出生日期為必填",
+    "ssn": "社會安全號碼為必填",
+    "maritalStatus": "婚姻狀態為必填",
+    "employmentStatus": "就業狀態為必填",
+    "employer": "雇主為必填",
+    "jobTitle": "職稱為必填",
+    "monthlyIncome": "請輸入有效的每月收入",
+    "loanType": "貸款類型為必填",
+    "loanAmount": "請輸入有效的貸款金額",
+    "loanPurpose": "貸款用途為必填",
+    "monthlyExpenses": "每月支出為必填",
+    "creditScore": "信用分數範圍為必填",
+    "idProof": "必須上傳身分證明",
+    "incomeProof": "必須上傳收入證明",
+    "addressProof": "必須上傳地址證明",
+    "applicationPdf": "必須上傳申請 PDF",
+    "agreeToTerms": "您必須同意條款與條件",
+    "agreeToCredit": "您必須同意信用查核"
+  },
+  "actions": { "previous": "上一步", "next": "下一步", "submit": "送出申請", "close": "關閉" },
+  "success": {
+    "heading": "申請已成功送出",
+    "description": "感謝您送出貸款申請。我們會審查您的資料，並在 2–3 個工作天內聯絡您說明後續步驟。",
+    "reference": "您的申請參考編號是："
+  },
+  "errors": {
+    "fixtureLoad": "無法載入{{document}}。",
+    "submissionFallback": "送出申請時發生問題。",
+    "submission": "送出失敗：{{message}}"
+  }
+}

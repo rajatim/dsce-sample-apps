@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import "./SidePanel.css";
 
 const SidePanel = ({ isOpen, onClose, children }) => {
+  const { t } = useTranslation("logs");
   const panelRef = useRef(null);
   const closeButtonRef = useRef(null);
   const previousFocusRef = useRef(null);
@@ -76,13 +78,13 @@ const SidePanel = ({ isOpen, onClose, children }) => {
         role="dialog"
         aria-modal="true"
         aria-hidden={!isOpen}
-        aria-label="Application processing details"
+        aria-label={t("sidePanel.dialogLabel")}
       >
         <button
           ref={closeButtonRef}
           className="sidepanel-close"
           onClick={onClose}
-          aria-label="Close application details"
+          aria-label={t("sidePanel.closeLabel")}
         >
           ✕
         </button>

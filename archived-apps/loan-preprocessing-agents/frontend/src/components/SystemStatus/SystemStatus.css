@@ -230,6 +230,37 @@
   font-weight: 600;
 }
 
+.system-status-problem {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.875rem 0 0;
+  padding: 0.75rem;
+  border-left: 3px solid #da1e28;
+  background: #fff1f1;
+}
+
+.system-status-problem > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.system-status-problem dt {
+  color: #6f6f6f;
+  font-size: 0.75rem;
+}
+
+.system-status-problem dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.system-status-problem code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+}
+
 .system-status-page p,
 .system-status-page h1,
 .system-status-page h2,
@@ -291,5 +322,10 @@
   .system-status-dependency {
     gap: 1rem;
     padding-inline: 1rem;
+  }
+
+  .system-status-problem > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
   }
 }

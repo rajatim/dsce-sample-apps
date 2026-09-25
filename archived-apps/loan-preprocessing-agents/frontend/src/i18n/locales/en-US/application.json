@@ -1,0 +1,163 @@
+{
+  "method": {
+    "heading": "Choose Your Application Method",
+    "subtitle": "Select how you'd like to submit your loan application",
+    "form": { "title": "Fill Application Form", "description": "Complete the application form step by step online" },
+    "pdf": { "title": "Upload Filled PDF", "description": "Upload your completed application form as PDF" }
+  },
+  "steps": {
+    "personal": "Personal Information",
+    "employment": "Employment Details",
+    "loan": "Loan Information",
+    "financial": "Financial Details",
+    "documents": "Document Upload",
+    "review": "Review & Submit",
+    "pdfUpload": "Upload Application",
+    "supportingDocuments": "Supporting Documents"
+  },
+  "header": {
+    "heading": "Loan Application",
+    "formSubtitle": "Complete the form below to apply for your loan",
+    "pdfSubtitle": "Upload your completed application and supporting documents",
+    "changeMethod": "Change Method"
+  },
+  "preset": {
+    "eyebrow": "POC Quick Test",
+    "heading": "Load a complete test application",
+    "description": "Choose an expected outcome. We will fill the fields, attach sample documents, and take you to review.",
+    "loadPass": "Load Pass example",
+    "loadingPass": "Loading Pass example…",
+    "loadReject": "Load Reject example",
+    "loadingReject": "Loading Reject example…",
+    "passLoaded": "Pass POC example loaded",
+    "rejectLoaded": "Reject POC example loaded",
+    "loadedSubtitle": "Review the prepared data, then submit when ready.",
+    "loadError": "Could not load the POC example"
+  },
+  "sections": {
+    "personal": "Personal Information",
+    "employment": "Employment Details",
+    "loan": "Loan Information",
+    "financial": "Financial Details"
+  },
+  "fields": {
+    "firstName": "First Name *",
+    "lastName": "Last Name *",
+    "email": "Email Address *",
+    "phone": "Phone Number *",
+    "dateOfBirth": "Date of Birth *",
+    "datePlaceholder": "mm/dd/yyyy",
+    "ssn": "Social Security Number *",
+    "maritalStatus": "Marital Status *",
+    "employmentStatus": "Employment Status *",
+    "employer": "Employer Name *",
+    "jobTitle": "Job Title *",
+    "monthlyIncome": "Monthly Income *",
+    "employmentDuration": "How long have you been with current employer?",
+    "loanType": "Loan Type *",
+    "loanAmount": "Loan Amount Requested *",
+    "loanPurpose": "Purpose of Loan *",
+    "loanPurposeHelp": "Please describe how you plan to use the loan",
+    "downPayment": "Down Payment (if applicable)",
+    "monthlyExpenses": "Monthly Expenses *",
+    "monthlyExpensesHelp": "Include rent, utilities, food, transportation, etc.",
+    "creditScore": "Credit Score Range *",
+    "additionalInformation": "Additional Information",
+    "bankingRelationship": "I have an existing banking relationship with this institution",
+    "hasOtherLoans": "I currently have other outstanding loans"
+  },
+  "options": {
+    "marital": { "placeholder": "Select marital status", "single": "Single", "married": "Married", "divorced": "Divorced", "widowed": "Widowed" },
+    "employment": { "placeholder": "Select employment status", "employed": "Employed", "selfEmployed": "Self Employed", "unemployed": "Unemployed", "retired": "Retired", "student": "Student" },
+    "duration": { "placeholder": "Select duration", "lessThanOne": "Less than 1 year", "oneToTwo": "1-2 years", "twoToFive": "2-5 years", "fiveToTen": "5-10 years", "moreThanTen": "More than 10 years" },
+    "loanType": { "placeholder": "Select loan type", "personal": "Personal Loan", "auto": "Auto Loan", "home": "Home Loan", "business": "Business Loan", "homeRenovation": "Home Renovation" },
+    "credit": { "excellent": "Excellent (750+)", "good": "Good (700-749)", "fair": "Fair (650-699)", "poor": "Poor (Below 650)", "unknown": "Don't know" }
+  },
+  "documents": {
+    "heading": "Document Upload",
+    "subtitle": "Please upload the required documents to complete your application",
+    "chooseFile": "Choose file",
+    "clearFile": "Clear file",
+    "fileUploaded": "File uploaded:",
+    "names": { "applicationPdf": "application PDF", "idProof": "ID proof", "incomeProof": "income proof", "addressProof": "address proof", "ssn": "SSN document" },
+    "idProof": { "legend": "ID Proof *", "upload": "Upload your ID proof (PDF, JPG, PNG)" },
+    "incomeProof": { "legend": "Income Proof *", "upload": "Upload your income proof (PDF, JPG, PNG)" },
+    "addressProof": { "legend": "Address Proof *", "upload": "Upload your address proof (PDF, JPG, PNG)" },
+    "additional": { "legend": "Additional Documents (Optional)", "upload": "Upload any additional documents (PDF, JPG, PNG)" }
+  },
+  "pdf": {
+    "heading": "Upload Application PDF",
+    "subtitle": "Please upload your completed loan application form",
+    "legend": "Application PDF *",
+    "chooseFile": "Choose PDF file",
+    "upload": "Upload your filled application form (PDF only)",
+    "uploaded": "Application PDF uploaded:"
+  },
+  "review": {
+    "heading": "Review Your Application",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "maritalStatus": "Marital Status",
+    "employment": "Employment",
+    "status": "Status",
+    "employer": "Employer",
+    "jobTitle": "Job Title",
+    "monthlyIncome": "Monthly Income",
+    "loanDetails": "Loan Details",
+    "type": "Type",
+    "amount": "Amount",
+    "purpose": "Purpose",
+    "downPayment": "Down Payment",
+    "financialInformation": "Financial Information",
+    "monthlyExpenses": "Monthly Expenses",
+    "creditScore": "Credit Score",
+    "uploadedDocuments": "Uploaded Documents",
+    "applicationPdf": "Application PDF",
+    "idProof": "ID Proof",
+    "incomeProof": "Income Proof",
+    "addressProof": "Address Proof",
+    "additionalDocuments": "Additional Documents",
+    "usdAmount": "${{value}}"
+  },
+  "agreements": {
+    "heading": "Required Agreements",
+    "terms": "I agree to the terms and conditions",
+    "credit": "I authorize a credit check to be performed"
+  },
+  "validation": {
+    "firstName": "First name is required",
+    "lastName": "Last name is required",
+    "email": "Email is required",
+    "phone": "Phone number is required",
+    "dateOfBirth": "Date of birth is required",
+    "ssn": "SSN is required",
+    "maritalStatus": "Marital status is required",
+    "employmentStatus": "Employment status is required",
+    "employer": "Employer is required",
+    "jobTitle": "Job title is required",
+    "monthlyIncome": "Valid monthly income is required",
+    "loanType": "Loan type is required",
+    "loanAmount": "Valid loan amount is required",
+    "loanPurpose": "Loan purpose is required",
+    "monthlyExpenses": "Monthly expenses is required",
+    "creditScore": "Credit score range is required",
+    "idProof": "ID proof is required",
+    "incomeProof": "Income proof is required",
+    "addressProof": "Address proof is required",
+    "applicationPdf": "Application PDF is required",
+    "agreeToTerms": "You must agree to terms and conditions",
+    "agreeToCredit": "You must agree to credit check"
+  },
+  "actions": { "previous": "Previous", "next": "Next", "submit": "Submit Application", "close": "Close" },
+  "success": {
+    "heading": "Application Submitted Successfully",
+    "description": "Thank you for submitting your loan application. We will review your information and contact you within 2-3 business days with next steps.",
+    "reference": "Your application reference number is:"
+  },
+  "errors": {
+    "fixtureLoad": "Could not load {{document}}.",
+    "submissionFallback": "Something went wrong with the submission.",
+    "submission": "Submission failed: {{message}}"
+  }
+}

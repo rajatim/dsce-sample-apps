@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '@carbon/react';
+import { useTranslation } from 'react-i18next';
 import {
   JsonView,
   allExpanded,
@@ -49,6 +50,7 @@ const isStructuredValue = (value) => (
 );
 
 const StructuredLogData = ({ data }) => {
+  const { t } = useTranslation('logs');
   const normalized = useMemo(() => normalizeNestedJson(data), [data]);
   const [shouldExpandNode, setShouldExpandNode] = useState(() => collapseAllNested);
 
@@ -62,15 +64,15 @@ const StructuredLogData = ({ data }) => {
 
   return (
     <div className="structured-log-data">
-      <div className="structured-log-actions" aria-label="JSON display controls">
+      <div className="structured-log-actions" aria-label={t('json.controls')}>
         <Button kind="ghost" size="sm" onClick={() => setShouldExpandNode(() => allExpanded)}>
-          Expand all JSON
+          {t('json.expand')}
         </Button>
         <Button kind="ghost" size="sm" onClick={() => setShouldExpandNode(() => collapseAllNested)}>
-          Collapse nested JSON
+          {t('json.collapse')}
         </Button>
         <Button kind="ghost" size="sm" onClick={copyJson}>
-          Copy JSON
+          {t('json.copy')}
         </Button>
       </div>
       <div
@@ -81,7 +83,7 @@ const StructuredLogData = ({ data }) => {
           style={defaultStyles}
           shouldExpandNode={shouldExpandNode}
           clickToExpandNode
-          aria-label="Structured JSON data"
+          aria-label={t('json.treeLabel')}
         />
       </div>
     </div>

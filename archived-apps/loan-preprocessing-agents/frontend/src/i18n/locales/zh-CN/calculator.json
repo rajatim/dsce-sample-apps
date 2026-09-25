@@ -1,0 +1,7 @@
+{
+  "page": { "heading": "贷款试算", "subtitle": "估算每月贷款还款金额。" },
+  "fields": { "amount": "贷款金额（美元）", "rate": "年利率（%）", "term": "贷款年限（年）", "invalidAmount": "贷款金额无效", "invalidRate": "利率无效", "invalidTerm": "贷款年限无效" },
+  "errors": { "title": "计算错误", "positiveValues": "请在所有字段中输入正数。" },
+  "actions": { "calculate": "计算" },
+  "results": { "heading": "预估结果", "monthly": "每月还款", "principal": "本金总额", "interest": "利息总额", "total": "还款总额", "empty": "输入贷款信息并点击“计算”即可查看结果。" }
+}

@@ -1,26 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button, InlineNotification, Loading, Tag } from '@carbon/react';
 import { Renew } from '@carbon/react/icons';
+import { useTranslation } from 'react-i18next';
 import { authFetch } from '../../services/api';
 import { buildApiUrl } from '../../services/apiBaseUrl';
+import { formatDateTime } from '../../i18n/format';
 import StructuredLogData from './StructuredLogData';
 import './LogViewer.css';
 
 const AGENT_STEPS = [
   {
     key: 'document_processing',
-    name: 'Document processing',
-    description: 'Classifies each document and extracts the application fields.',
+    translationKey: 'documentProcessing',
   },
   {
     key: 'document_validation',
-    name: 'Document validation',
-    description: 'Checks authenticity, completeness, expiry, and document risk.',
+    translationKey: 'documentValidation',
   },
   {
     key: 'final_decision',
-    name: 'Final decision',
-    description: 'Cross-checks the application and returns the validation result.',
+    translationKey: 'finalDecision',
   },
 ];
 
@@ -28,69 +27,69 @@ const ACTIVE_STATUSES = new Set(['pending', 'processing', 'retrying']);
 
 const RESULT_PRESENTATION = {
   passed: {
-    title: 'Validation passed',
-    description: 'The application completed all required validation checks.',
-    tag: 'Passed',
+    translationKey: 'passed',
     tagType: 'green',
     tone: 'success',
   },
   rejected: {
-    title: 'Application rejected',
-    description: 'The agents completed their review and found validation issues.',
-    tag: 'Rejected',
+    translationKey: 'rejected',
     tagType: 'red',
     tone: 'rejected',
   },
   'processing failed': {
-    title: 'Processing failed',
-    description: 'The agent workflow stopped before a final decision was produced.',
-    tag: 'Failed',
+    translationKey: 'processingFailed',
     tagType: 'red',
     tone: 'error',
   },
   pending: {
-    title: 'Waiting to start',
-    description: 'The application is queued for agent processing.',
-    tag: 'Pending',
+    translationKey: 'pending',
     tagType: 'blue',
     tone: 'active',
   },
   processing: {
-    title: 'Processing application',
-    description: 'The agents are reviewing the application and its documents.',
-    tag: 'Processing',
+    translationKey: 'processing',
     tagType: 'blue',
     tone: 'active',
   },
   retrying: {
-    title: 'Temporary interruption',
-    description: 'The workflow is retrying an agent request automatically.',
-    tag: 'Retrying',
+    translationKey: 'retrying',
     tagType: 'purple',
     tone: 'warning',
   },
 };
 
-const FIELD_LABELS = {
-  document_authenticity: 'Document authenticity',
-  cross_validation: 'Cross-document validation',
-  age_verification: 'Age verification',
-  overall_validation_summary: 'Overall summary',
-  applicant_age: 'Applicant age',
-  dob_consistency: 'Date of birth consistency',
-  status: 'Status',
-  details: 'Details',
-  error: 'Error',
-};
+const FIELD_LABELS = new Set([
+  'document_authenticity',
+  'cross_validation',
+  'age_verification',
+  'overall_validation_summary',
+  'applicant_age',
+  'dob_consistency',
+  'status',
+  'details',
+  'error',
+]);
 
 const normalizeStatus = (status) => status?.trim().toLowerCase() || 'unknown';
 
-const statusPresentation = (status) => RESULT_PRESENTATION[normalizeStatus(status)] || {
-  title: 'Application status',
-  description: 'Review the available application and processing information below.',
-  tag: status?.trim() || 'Unknown',
-  tagType: 'gray',
-  tone: 'neutral',
+const statusPresentation = (status, t) => {
+  const known = RESULT_PRESENTATION[normalizeStatus(status)];
+  if (!known) {
+    return {
+      title: t('results.unknown.title'),
+      description: t('results.unknown.description'),
+      tag: status?.trim() || t('results.unknown.tag'),
+      tagType: 'gray',
+      tone: 'neutral',
+    };
+  }
+  const prefix = `results.${known.translationKey}`;
+  return {
+    ...known,
+    title: t(`${prefix}.title`),
+    description: t(`${prefix}.description`),
+    tag: t(`${prefix}.tag`),
+  };
 };
 
 const isErrorResponse = (data) => {
@@ -101,8 +100,13 @@ const isErrorResponse = (data) => {
     || normalized.includes('please retry');
 };
 
+const eventMessage = (data) => {
+  if (typeof data === 'string') return data;
+  return typeof data?.message === 'string' ? data.message : '';
+};
+
 const agentKeyFromInvocation = (data) => {
-  const value = String(data || '').toLowerCase();
+  const value = eventMessage(data).toLowerCase();
   if (value.includes('document processor')) return 'document_processing';
   if (value.includes('document validator')) return 'document_validation';
   if (value.includes('final decision')) return 'final_decision';
@@ -160,7 +164,7 @@ const buildRuns = (logs) => {
 const stepState = (stepKey, run, applicationStatus, isLatestRun) => {
   const events = run.events.filter((event) => event.agentKey === stepKey);
   if (!events.length) {
-    return { key: 'not-started', label: 'Not started' };
+    return { key: 'not-started', translationKey: 'notStarted' };
   }
 
   const startedStepIndexes = AGENT_STEPS
@@ -178,7 +182,7 @@ const stepState = (stepKey, run, applicationStatus, isLatestRun) => {
   const laterStepStarted = stepIndex < lastStartedIndex;
 
   if (hasAgentError) {
-    return { key: 'failed', label: 'Failed' };
+    return { key: 'failed', translationKey: 'failed' };
   }
   if (
     hasRetry
@@ -186,7 +190,7 @@ const stepState = (stepKey, run, applicationStatus, isLatestRun) => {
     && normalizedApplicationStatus === 'retrying'
     && stepIndex === lastStartedIndex
   ) {
-    return { key: 'retrying', label: 'Retrying' };
+    return { key: 'retrying', translationKey: 'retrying' };
   }
   if (
     isLatestRun
@@ -194,19 +198,19 @@ const stepState = (stepKey, run, applicationStatus, isLatestRun) => {
     && stepIndex === lastStartedIndex
     && !hasFallback
   ) {
-    return { key: 'failed', label: 'Failed' };
+    return { key: 'failed', translationKey: 'failed' };
   }
   if (hasResponse || hasFallback || laterStepStarted) {
-    return { key: 'complete', label: 'Complete' };
+    return { key: 'complete', translationKey: 'complete' };
   }
   if (
     isLatestRun
     && ACTIVE_STATUSES.has(normalizedApplicationStatus)
     && stepIndex === lastStartedIndex
   ) {
-    return { key: 'processing', label: 'Processing' };
+    return { key: 'processing', translationKey: 'processing' };
   }
-  return { key: 'stopped', label: 'Stopped' };
+  return { key: 'stopped', translationKey: 'stopped' };
 };
 
 const parseValidationComments = (comments) => {
@@ -241,7 +245,9 @@ const parseValidationComments = (comments) => {
   return sections.length ? sections : [{ key: 'details', value: comments.trim(), fields: {} }];
 };
 
-const displayFieldLabel = (key) => FIELD_LABELS[key] || key.replaceAll('_', ' ');
+const displayFieldLabel = (key, t) => (
+  FIELD_LABELS.has(key) ? t(`validation.fieldLabels.${key}`) : key.replaceAll('_', ' ')
+);
 
 const validationTone = (status) => {
   const normalized = normalizeStatus(status);
@@ -250,37 +256,34 @@ const validationTone = (status) => {
   return 'neutral';
 };
 
-const formatTimestamp = (timestamp) => {
+const formatTimestamp = (timestamp, locale) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return timestamp;
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(date);
+  return formatDateTime(date, locale);
 };
 
-const eventTitle = (event) => {
-  if (event.stage === 'invoke_agent') return String(event.data || 'Agent started');
-  if (event.stage === 'tool_call') return 'Tool called';
-  if (event.stage === 'tool_response') return 'Tool returned data';
-  if (event.stage === 'retry') return `Agent retry requested${event.data?.attempt ? ` · attempt ${event.data.attempt}` : ''}`;
-  if (event.stage === 'final_continuation') return 'Final decision response requested again';
-  if (event.stage === 'demo_final_fallback') return 'POC fallback completed the decision';
-  if (event.stage === 'agent_response' && isErrorResponse(event.data)) return 'Agent reported an error';
-  if (event.stage === 'agent_response') return 'Agent returned a response';
-  return 'Agent stream update';
+const eventTitle = (event, t) => {
+  if (event.stage === 'invoke_agent') return eventMessage(event.data) || t('events.agentStarted');
+  if (event.stage === 'tool_call') return t('events.toolCalled');
+  if (event.stage === 'tool_response') return t('events.toolReturned');
+  if (event.stage === 'retry') return event.data?.attempt
+    ? t('events.retryAttempt', { attempt: event.data.attempt })
+    : t('events.retryRequested');
+  if (event.stage === 'final_continuation') return t('events.finalRequestedAgain');
+  if (event.stage === 'demo_final_fallback') return t('events.fallbackCompleted');
+  if (event.stage === 'agent_response' && isErrorResponse(event.data)) return t('events.agentError');
+  if (event.stage === 'agent_response') return t('events.agentResponse');
+  return t('events.streamUpdate');
 };
 
 const ValidationFindings = ({ comments }) => {
+  const { t } = useTranslation('logs');
   const sections = parseValidationComments(comments);
   if (!sections.length) return null;
 
   return (
     <section className="validation-findings" aria-labelledby="validation-findings-title">
-      <h3 id="validation-findings-title">Validation findings</h3>
+      <h3 id="validation-findings-title">{t('validation.heading')}</h3>
       <div className="validation-findings-list">
         {sections.map((section) => {
           const status = section.fields.status;
@@ -294,7 +297,7 @@ const ValidationFindings = ({ comments }) => {
               key={section.key}
             >
               <div className="validation-finding-heading">
-                <h4>{displayFieldLabel(section.key)}</h4>
+                <h4>{displayFieldLabel(section.key, t)}</h4>
                 {status && <span className="validation-finding-status">{status}</span>}
               </div>
               {detail && <p>{detail}</p>}
@@ -302,7 +305,7 @@ const ValidationFindings = ({ comments }) => {
                 <dl className="validation-finding-metadata">
                   {metadata.map(([key, value]) => (
                     <React.Fragment key={key}>
-                      <dt>{displayFieldLabel(key)}</dt>
+                      <dt>{displayFieldLabel(key, t)}</dt>
                       <dd>{value || '—'}</dd>
                     </React.Fragment>
                   ))}
@@ -316,62 +319,212 @@ const ValidationFindings = ({ comments }) => {
   );
 };
 
-const ProcessingRun = ({ run, applicationStatus, isLatest, showRunLabel }) => (
-  <article className="processing-run">
-    {showRunLabel && (
-      <div className="processing-run-heading">
-        <h4>Run {run.number}</h4>
-        {isLatest && <span>Latest</span>}
-      </div>
-    )}
-    <ol className="agent-timeline">
-      {AGENT_STEPS.map((step) => {
-        const state = stepState(step.key, run, applicationStatus, isLatest);
-        return (
-          <li
-            className={`agent-step agent-step--${state.key}`}
-            aria-label={`${step.name}: ${state.label}`}
-            key={step.key}
-          >
-            <span className="agent-step-marker" aria-hidden="true" />
-            <div className="agent-step-content">
-              <div className="agent-step-heading">
-                <h4>{step.name}</h4>
-                <span className="agent-step-status">{state.label}</span>
+const ProcessingRun = ({ run, applicationStatus, isLatest, showRunLabel }) => {
+  const { t } = useTranslation('logs');
+  return (
+    <article className="processing-run">
+      {showRunLabel && (
+        <div className="processing-run-heading">
+          <h4>{t('runs.label', { number: run.number })}</h4>
+          {isLatest && <span>{t('runs.latest')}</span>}
+        </div>
+      )}
+      <ol className="agent-timeline">
+        {AGENT_STEPS.map((step) => {
+          const state = stepState(step.key, run, applicationStatus, isLatest);
+          const name = t(`agents.${step.translationKey}.name`);
+          const stateLabel = t(`stepStates.${state.translationKey}`);
+          return (
+            <li
+              className={`agent-step agent-step--${state.key}`}
+              aria-label={`${name}: ${stateLabel}`}
+              key={step.key}
+            >
+              <span className="agent-step-marker" aria-hidden="true" />
+              <div className="agent-step-content">
+                <div className="agent-step-heading">
+                  <h4>{name}</h4>
+                  <span className="agent-step-status">{stateLabel}</span>
+                </div>
+                <p>{t(`agents.${step.translationKey}.description`)}</p>
               </div>
-              <p>{step.description}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  </article>
-);
+            </li>
+          );
+        })}
+      </ol>
+    </article>
+  );
+};
 
-const TechnicalDetails = ({ logs }) => (
-  <details className="technical-details">
-    <summary>
-      <span>Technical details</span>
-      <span className="technical-details-count">{logs.length} events</span>
-    </summary>
-    <div className="technical-event-list">
-      {logs.map((event, index) => (
-        <article className={`technical-event technical-event--${event.stage}`} key={`${event.timestamp}-${index}`}>
-          <div className="technical-event-heading">
-            <div>
-              <span className="technical-event-type">{event.stage.replaceAll('_', ' ')}</span>
-              <h4>{eventTitle(event)}</h4>
-            </div>
-            <time dateTime={event.timestamp}>{formatTimestamp(event.timestamp)}</time>
-          </div>
-          {event.stage !== 'invoke_agent' && <StructuredLogData data={event.data} />}
-        </article>
-      ))}
+const TechnicalEventData = ({ data }) => {
+  const { t } = useTranslation('logs');
+  const contentId = useId();
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="technical-event-data">
+      <Button
+        className="technical-event-data__toggle"
+        kind="ghost"
+        size="sm"
+        type="button"
+        aria-controls={contentId}
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+      >
+        {t(isExpanded ? 'technical.hideRaw' : 'technical.showRaw')}
+      </Button>
+      {isExpanded && (
+        <div id={contentId}>
+          <StructuredLogData data={data} />
+        </div>
+      )}
     </div>
-  </details>
-);
+  );
+};
+
+const TechnicalDetails = ({ logs }) => {
+  const { t, i18n } = useTranslation('logs');
+  return (
+    <details className="technical-details">
+      <summary>
+        <span>{t('technical.heading')}</span>
+        <span className="technical-details-count">{t('technical.eventCount', { count: logs.length })}</span>
+      </summary>
+      <div className="technical-event-list">
+        {logs.map((event, index) => (
+          <article className={`technical-event technical-event--${event.stage}`} key={`${event.timestamp}-${index}`}>
+            <div className="technical-event-heading">
+              <div>
+                <span className="technical-event-type">
+                  {t(`eventTypes.${event.stage}`, { defaultValue: event.stage.replaceAll('_', ' ') })}
+                </span>
+                <h4>{eventTitle(event, t)}</h4>
+              </div>
+              <time dateTime={event.timestamp}>{formatTimestamp(event.timestamp, i18n.resolvedLanguage)}</time>
+            </div>
+            {event.stage !== 'invoke_agent' && <TechnicalEventData data={event.data} />}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+};
+
+const httpStatusLabel = (status) => {
+  const labels = {
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    429: 'Too Many Requests',
+    500: 'Internal Server Error',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable',
+    504: 'Gateway Timeout',
+  };
+  return status ? `${status}${labels[status] ? ` ${labels[status]}` : ''}` : '—';
+};
+
+const ProcessingFailureSummary = ({ failure }) => {
+  const { t } = useTranslation('logs');
+  const knownCategories = new Set([
+    'provider_quota',
+    'provider_authorization',
+    'provider_rate_limit',
+    'provider_unavailable',
+    'timeout',
+    'unknown',
+  ]);
+  const knownStages = new Set([
+    'document_processing_agent',
+    'document_validation_agent',
+    'final_decision_agent',
+    'agent_workflow',
+  ]);
+  const knownActions = new Set([
+    'check_service_configuration',
+    'retry_later',
+    'review_technical_details',
+  ]);
+  const category = knownCategories.has(failure.category) ? failure.category : 'unknown';
+  const service = failure.service === 'watsonx_ai' ? 'watsonx_ai' : 'agent_workflow';
+  const stage = knownStages.has(failure.stage) ? failure.stage : 'agent_workflow';
+  const action = knownActions.has(failure.action)
+    ? failure.action
+    : 'review_technical_details';
+
+  const copyTraceId = () => {
+    if (failure.trace_id && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(failure.trace_id);
+    }
+  };
+
+  return (
+    <section className="processing-problem" aria-labelledby="processing-problem-title">
+      <div className="processing-problem__summary">
+        <p className="processing-problem__label">{t('failure.label')}</p>
+        <h3 id="processing-problem-title">{t(`failure.categories.${category}.title`)}</h3>
+        <p>{t(`failure.categories.${category}.description`)}</p>
+        {category === 'provider_quota' && (
+          <p className="processing-problem__clarification">
+            {t('failure.categories.provider_quota.clarification')}
+          </p>
+        )}
+      </div>
+
+      <div className="processing-problem__action">
+        <h4>{t('failure.actionHeading')}</h4>
+        <p>{t(`failure.actions.${action}`)}</p>
+        {!failure.retryable_now && <p>{t('failure.retryAfterFix')}</p>}
+        {failure.documentation_url && (
+          <a href={failure.documentation_url} target="_blank" rel="noreferrer">
+            {t('failure.documentation')}
+          </a>
+        )}
+      </div>
+
+      <dl className="processing-problem__facts">
+        <div>
+          <dt>{t('failure.fields.stage')}</dt>
+          <dd>{t(`failure.stages.${stage}`)}</dd>
+        </div>
+        <div>
+          <dt>{t('failure.fields.service')}</dt>
+          <dd>{t(`failure.services.${service}`)}</dd>
+        </div>
+        <div>
+          <dt>{t('failure.fields.code')}</dt>
+          <dd><code>{failure.provider_code}</code></dd>
+        </div>
+        <div>
+          <dt>{t('failure.fields.httpStatus')}</dt>
+          <dd><code>{httpStatusLabel(failure.http_status)}</code></dd>
+        </div>
+        {failure.trace_id && (
+          <div className="processing-problem__trace">
+            <dt>{t('failure.fields.traceId')}</dt>
+            <dd>
+              <code>{failure.trace_id}</code>
+              <Button
+                kind="ghost"
+                size="sm"
+                type="button"
+                aria-label={t('failure.copyTrace')}
+                onClick={copyTraceId}
+              >
+                {t('failure.copy')}
+              </Button>
+            </dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  );
+};
 
 const LogViewer = ({ application, appId, onApplicationChange }) => {
+  const { t } = useTranslation('logs');
   const initialApplication = application || { app_id_str: appId, status: '' };
   const resolvedAppId = initialApplication.app_id_str || appId;
   const fetchInFlightRef = useRef(null);
@@ -381,7 +534,8 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [isRetrying, setIsRetrying] = useState(false);
-  const result = statusPresentation(currentApplication.status);
+  const result = statusPresentation(currentApplication.status, t);
+  const processingFailure = currentApplication.processing_failure;
   const runs = useMemo(() => buildRuns(logs), [logs]);
 
   const updateApplication = useCallback((nextApplication) => {
@@ -406,7 +560,7 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
           authFetch(buildApiUrl(`/get_logs/${resolvedAppId}`)),
         ]);
         if (!applicationResponse.ok || !logsResponse.ok) {
-          throw new Error('Failed to fetch processing details.');
+          throw new Error('processing.fetchError');
         }
 
         const [applicationData, logsData] = await Promise.all([
@@ -466,7 +620,7 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
       );
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.detail || 'The application could not be retried.');
+        throw new Error(data.detail || 'notifications.retryFallback');
       }
       updateApplication(await response.json());
       await fetchDetails();
@@ -481,8 +635,8 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
     <div className="log-viewer-panel">
       <header className="log-viewer-header">
         <div>
-          <p className="log-viewer-eyebrow">Application details</p>
-          <h2>Loan application</h2>
+          <p className="log-viewer-eyebrow">{t('header.eyebrow')}</p>
+          <h2>{t('header.title')}</h2>
           <code>{resolvedAppId}</code>
         </div>
         <Button
@@ -490,16 +644,16 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
           size="sm"
           onClick={() => fetchDetails(true)}
           renderIcon={Renew}
-          iconDescription="Refresh processing details"
+          iconDescription={t('header.refreshDescription')}
         >
-          Refresh
+          {t('header.refresh')}
         </Button>
       </header>
 
       <div className="log-viewer-content">
         <section className={`result-summary result-summary--${result.tone}`} aria-labelledby="result-summary-title">
           <div className="result-summary-copy">
-            <p>Current result</p>
+            <p>{t('result.current')}</p>
             <h3 id="result-summary-title">{result.title}</h3>
             <p>{result.description}</p>
           </div>
@@ -512,7 +666,7 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
                 disabled={isRetrying || isLoading}
                 onClick={retryProcessing}
               >
-                {isRetrying ? 'Starting retry…' : 'Retry processing'}
+                {isRetrying ? t('actions.retrying') : t('actions.retry')}
               </Button>
             )}
           </div>
@@ -521,39 +675,42 @@ const LogViewer = ({ application, appId, onApplicationChange }) => {
         {actionError && (
           <InlineNotification
             kind="error"
-            title="Retry unavailable"
-            subtitle={actionError}
+            title={t('notifications.retryUnavailable')}
+            subtitle={actionError === 'notifications.retryFallback' ? t(actionError) : actionError}
             hideCloseButton
           />
         )}
 
-        <ValidationFindings comments={currentApplication.validation_comments} />
+        {processingFailure && <ProcessingFailureSummary failure={processingFailure} />}
+        {!processingFailure && (
+          <ValidationFindings comments={currentApplication.validation_comments} />
+        )}
 
         <section className="processing-history" aria-labelledby="processing-history-title">
           <div className="section-heading">
             <div>
-              <h3 id="processing-history-title">Agent processing</h3>
-              <p>Three agents review the documents and produce the final result.</p>
+              <h3 id="processing-history-title">{t('processing.heading')}</h3>
+              <p>{t('processing.description')}</p>
             </div>
           </div>
 
           {isLoading && (
             <div className="processing-state">
-              <Loading small withOverlay={false} description="Loading processing history" />
+              <Loading small withOverlay={false} description={t('processing.loading')} />
             </div>
           )}
           {error && (
             <InlineNotification
               kind="error"
-              title="Processing history unavailable"
-              subtitle={error}
+              title={t('processing.errorTitle')}
+              subtitle={error === 'processing.fetchError' ? t(error) : error}
               hideCloseButton
             />
           )}
           {!isLoading && !error && runs.length === 0 && (
             <div className="processing-empty-state">
-              <h4>No processing history yet</h4>
-              <p>The agent timeline will appear here after processing begins.</p>
+              <h4>{t('processing.emptyHeading')}</h4>
+              <p>{t('processing.emptyDescription')}</p>
             </div>
           )}
           {!isLoading && !error && runs.length > 0 && (

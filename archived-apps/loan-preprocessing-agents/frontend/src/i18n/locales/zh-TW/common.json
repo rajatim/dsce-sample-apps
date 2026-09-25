@@ -1,0 +1,38 @@
+{
+  "app": { "ariaLabel": "貸款申請平台" },
+  "brand": { "platformLabel": "金融" },
+  "language": {
+    "label": "語言",
+    "options": {
+      "zh-TW": "繁體中文（台灣）",
+      "zh-CN": "简体中文",
+      "en-US": "English (US)",
+      "en-GB": "English (UK)"
+    }
+  },
+  "menu": { "open": "開啟導覽選單", "close": "關閉導覽選單" },
+  "navigation": {
+    "main": "主要導覽",
+    "mobile": "行動版導覽",
+    "apply": "申請",
+    "applications": "我的申請",
+    "calculator": "貸款試算",
+    "status": "Demo 狀態",
+    "backToDsce": "返回 DSCE 展示台"
+  },
+  "auth": {
+    "unavailable": "Demo 服務無法使用", "tryAgain": "再試一次", "preparing": "正在準備貸款 Demo",
+    "preparingDescription": "正在設定範例工作區，通常只需要一點時間。", "preparingLabel": "正在準備 Demo",
+    "errors": { "unreachable": "無法連線至 Demo 服務。", "missingToken": "Demo 服務未回傳存取權杖。" }
+  },
+  "capabilityNotice": {
+    "labels": { "submit_application": "送出申請", "process_documents": "文件處理", "generate_decision": "貸款決定", "view_applications": "申請紀錄", "fallback": "此 Demo 功能" },
+    "title": "{{label}}可能受到影響", "fallback": "{{label}}可能受到影響。", "viewStatus": "查看 Demo 狀態",
+    "messages": {
+      "submit_application": { "limited": "送出申請可能會延遲。", "not_configured": "此 Demo 尚未設定送出申請功能。", "unavailable": "目前無法送出申請。" },
+      "process_documents": { "limited": "文件處理可能會延遲。", "not_configured": "此 Demo 尚未設定文件處理功能。", "unavailable": "文件處理目前無法使用。" },
+      "generate_decision": { "limited": "貸款決定可能會延遲。", "not_configured": "此 Demo 尚未設定貸款決定功能。", "unavailable": "貸款決定目前無法使用。" },
+      "view_applications": { "limited": "申請紀錄可能會延遲。", "not_configured": "此 Demo 尚未設定申請紀錄功能。", "unavailable": "申請紀錄目前無法使用。" }
+    }
+  }
+}

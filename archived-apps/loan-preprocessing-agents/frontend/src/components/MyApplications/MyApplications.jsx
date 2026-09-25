@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useContext, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DataTable,
   Table,
@@ -18,17 +19,7 @@ import { buildApiUrl } from '../../services/apiBaseUrl';
 import PanelContext from '../../contexts/PanelContext';
 import LogViewer from '../LogViewer/LogViewer';
 import CapabilityNotice from '../CapabilityNotice/CapabilityNotice';
-
-// Define the headers for our table
-const headers = [
-  { key: 'app_id_str', header: 'Application ID' },
-  { key: 'applicant_name', header: 'Applicant Name' },
-  { key: 'loan_type', header: 'Loan Type' },
-  { key: 'amount', header: 'Amount' },
-  { key: 'status', header: 'Status' },
-  { key: 'validation_comments', header: 'Details' },
-  { key: 'submitted_date', header: 'Submitted Date' },
-];
+import { formatDateTime, formatUsd } from '../../i18n/format';
 
 const ACTIVE_STATUSES = new Set(['pending', 'processing', 'retrying']);
 
@@ -38,16 +29,16 @@ const hasActiveApplications = (applications) =>
   applications.some((application) => ACTIVE_STATUSES.has(normalizeStatus(application.status)));
 
 // A helper function to render status tags with colors
-const renderStatusTag = (status) => {
+const renderStatusTag = (status, t) => {
   const normalizedStatus = normalizeStatus(status);
   const displayStatus = {
-    approved: 'Approved',
-    passed: 'Passed',
-    pending: 'Pending',
-    processing: 'Processing',
-    retrying: 'Retrying',
-    rejected: 'Rejected',
-    'processing failed': 'Processing Failed',
+    approved: t('statuses.approved'),
+    passed: t('statuses.passed'),
+    pending: t('statuses.pending'),
+    processing: t('statuses.processing'),
+    retrying: t('statuses.retrying'),
+    rejected: t('statuses.rejected'),
+    'processing failed': t('statuses.processingFailed'),
   }[normalizedStatus] || status?.trim() || '';
 
   switch (normalizedStatus) {
@@ -68,11 +59,21 @@ const renderStatusTag = (status) => {
 };
 
 const MyApplications = () => {
+  const { t, i18n } = useTranslation('applications');
   const fetchInFlightRef = useRef(null);
   const [applications, setApplications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const { setIsPanelOpen, setPanelContent } = useContext(PanelContext);
+  const headers = [
+    { key: 'app_id_str', header: t('headers.applicationId') },
+    { key: 'applicant_name', header: t('headers.applicantName') },
+    { key: 'loan_type', header: t('headers.loanType') },
+    { key: 'amount', header: t('headers.amount') },
+    { key: 'status', header: t('headers.status') },
+    { key: 'validation_comments', header: t('headers.details') },
+    { key: 'submitted_date', header: t('headers.submittedDate') },
+  ];
 
   const handleApplicationChange = useCallback((updatedApplication) => {
     setApplications((currentApplications) => currentApplications.map((application) => (
@@ -90,7 +91,7 @@ const MyApplications = () => {
       try {
         const response = await authFetch(buildApiUrl('/list_applications'));
         if (!response.ok) {
-          throw new Error('Failed to fetch applications.');
+          throw new Error('errors.fetch');
         }
         const data = await response.json();
         setApplications(data.map(app => ({
@@ -156,21 +157,26 @@ const MyApplications = () => {
 
   return (
     <div className="applications-container">
-      <h1 className="applications-header">My Applications</h1>
+      <h1 className="applications-header">{t('page.heading')}</h1>
       <CapabilityNotice capabilityIds={['view_applications']} />
-      <p>Here is a list of your submitted loan applications.</p>
-      <p className="applications-subtitle">You can hover on a row and click to see the detailed steps followed by agents.</p>
-      <p className="applications-scroll-hint">Swipe sideways to view status, details, and submitted date.</p>
+      <p>{t('page.intro')}</p>
+      <p className="applications-subtitle">{t('page.subtitle')}</p>
+      <p className="applications-scroll-hint">{t('page.scrollHint')}</p>
       {isLoading ? (
         <div className="loading-container">
-          <Loading description="Loading applications..." withOverlay={false} />
+          <Loading description={t('loading')} withOverlay={false} />
         </div>
       ) : error ? (
         <InlineNotification
           kind="error"
-          title="Failed to load applications"
-          subtitle={error || 'Please try again later.'}
+          title={t('errors.title')}
+          subtitle={error === 'errors.fetch' ? t(error) : error || t('errors.fallback')}
         />
+      ) : applications.length === 0 ? (
+        <div className="applications-empty-state">
+          <h2>{t('empty.heading')}</h2>
+          <p>{t('empty.description')}</p>
+        </div>
       ) : <DataTable rows={applications} headers={headers}>
         {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
           <TableContainer>
@@ -207,12 +213,16 @@ const MyApplications = () => {
                       {row.cells.map((cell) => (
                       <TableCell key={cell.id}>
                         {cell.info.header === 'status'
-                        ? renderStatusTag(cell.value)
+                        ? renderStatusTag(cell.value, t)
                         : cell.info.header === 'validation_comments'
-                          ? <span className="validation-summary">View processing details</span>
+                          ? <span className="validation-summary">{t('viewDetails')}</span>
                           : cell.info.header === 'app_id_str'
                             ?<span style={{color: 'blue', textDecoration: 'underline'}}>{cell.value}</span>
-                            : cell.value}
+                            : cell.info.header === 'amount'
+                              ? formatUsd(cell.value, i18n.resolvedLanguage)
+                              : cell.info.header === 'submitted_date'
+                                ? formatDateTime(cell.value, i18n.resolvedLanguage)
+                                : cell.value}
                       </TableCell>
                       ))}
                     </TableRow>

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Accordion,
   AccordionItem,
@@ -14,26 +15,12 @@ import {
   WarningAltFilled,
 } from '@carbon/react/icons';
 import { useSystemStatus } from '../../contexts/useSystemStatus';
+import { formatDateTime } from '../../i18n/format';
 import './SystemStatus.css';
 
-const CAPABILITIES = [
-  ['submit_application', 'Submit an application', 'Submission status could not be checked.'],
-  ['process_documents', 'Process documents', 'Document processing status could not be checked.'],
-  ['generate_decision', 'Generate a loan decision', 'Loan decision status could not be checked.'],
-  ['view_applications', 'View applications', 'Application history status could not be checked.'],
-];
+const CAPABILITIES = ['submit_application', 'process_documents', 'generate_decision', 'view_applications'];
 
-const DEPENDENCIES = [
-  ['loan_api', 'Loan API'],
-  ['postgresql', 'PostgreSQL'],
-  ['cos', 'IBM Cloud Object Storage'],
-  ['watsonx_ai', 'watsonx.ai'],
-  ['wxo', 'watsonx Orchestrate'],
-  ['document_processing_agent', 'Document Processing Agent'],
-  ['document_validation_agent', 'Document Validation Agent'],
-  ['final_decision_agent', 'Final Decision Agent'],
-  ['openllmetry', 'OpenLLMetry'],
-];
+const DEPENDENCIES = ['loan_api', 'postgresql', 'cos', 'watsonx_ai', 'wxo', 'document_processing_agent', 'document_validation_agent', 'final_decision_agent', 'openllmetry'];
 const AGENT_DEPENDENCY_IDS = new Set([
   'document_processing_agent',
   'document_validation_agent',
@@ -41,89 +28,130 @@ const AGENT_DEPENDENCY_IDS = new Set([
 ]);
 
 const STATUS_PRESENTATION = {
-  ready: { label: 'Ready', tag: 'green', Icon: CheckmarkFilled },
-  limited: { label: 'Limited', tag: 'warm-gray', Icon: WarningAltFilled },
-  unavailable: { label: 'Unavailable', tag: 'red', Icon: ErrorFilled },
-  checking: { label: 'Checking', tag: 'blue', Icon: Renew },
-  unknown: { label: 'Status unavailable', tag: 'gray', Icon: UnknownFilled },
-  not_configured: { label: 'Not configured', tag: 'red', Icon: ErrorFilled },
-};
-const STATUS_UNAVAILABLE_OVERALL = {
-  status: 'unknown',
-  title: 'Status unavailable',
-  message: 'We could not check the demo status. You may still try the demo.',
+  ready: { tag: 'green', Icon: CheckmarkFilled },
+  limited: { tag: 'warm-gray', Icon: WarningAltFilled },
+  unavailable: { tag: 'red', Icon: ErrorFilled },
+  checking: { tag: 'blue', Icon: Renew },
+  unknown: { tag: 'gray', Icon: UnknownFilled },
+  not_configured: { tag: 'red', Icon: ErrorFilled },
 };
 const AUTO_REFRESH_INTERVAL_MS = 300_000;
 
-const EVIDENCE_LABELS = {
-  live_check: 'Live check',
-  configured: 'Configured',
-  recent_execution: 'Recent execution',
-  not_verified: 'Not verified',
-};
-
-const formatTimestamp = (value) => {
-  if (!value) return '';
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-};
-
 const StatusMark = ({ status, large = false }) => {
+  const { t } = useTranslation('status');
   const presentation = STATUS_PRESENTATION[status] || STATUS_PRESENTATION.unknown;
   const Icon = presentation.Icon;
 
   return (
     <span className={`system-status-mark system-status-mark--${status || 'unknown'}`}>
       <Icon size={large ? 32 : 20} aria-hidden="true" />
-      <Tag size="sm" type={presentation.tag}>{presentation.label}</Tag>
+      <Tag size="sm" type={presentation.tag}>{t(`statuses.${STATUS_PRESENTATION[status] ? status : 'unknown'}`)}</Tag>
     </span>
   );
 };
 
-const capabilityItems = (status, isStale) => CAPABILITIES.map(([id, label, fallbackMessage]) => {
+const capabilityItems = (status, isStale, t) => CAPABILITIES.map((id) => {
   const capability = status?.capabilities.find((item) => item.id === id);
+  const itemStatus = isStale ? 'unknown' : capability?.status || 'unknown';
+  const fallbackMessage = t(`capabilities.fallbacks.${id}`);
+  const knownMessage = ['ready', 'limited', 'unavailable', 'not_configured'].includes(itemStatus);
+  const quotaBlocked = capability?.problem?.provider_code === 'token_quota_reached';
   return {
     id,
-    label,
-    status: isStale ? 'unknown' : capability?.status || 'unknown',
-    message: isStale ? fallbackMessage : capability?.message || fallbackMessage,
+    label: t(`capabilities.labels.${id}`),
+    status: itemStatus,
+    message: !isStale && quotaBlocked
+      ? t(`capabilities.problemMessages.provider_quota.${id}`, { defaultValue: fallbackMessage })
+      : isStale
+      ? fallbackMessage
+      : knownMessage
+        ? t(`capabilities.messages.${id}.${itemStatus}`)
+        : capability?.message || fallbackMessage,
+    problem: isStale ? null : capability?.problem,
   };
 });
 
-const dependencyItems = (status, isStale) => DEPENDENCIES.flatMap(([id, label]) => {
+const dependencyItems = (status, isStale, t) => DEPENDENCIES.flatMap((id) => {
   const dependency = status?.dependencies.find((item) => item.id === id);
   return dependency ? [{
     ...dependency,
     id,
-    label,
+    label: t(`dependencies.${id}`),
     status: isStale ? 'unknown' : dependency.status,
   }] : [];
 });
 
-const dependencyTiming = (dependency) => {
+const dependencyTiming = (dependency, t, locale) => {
   if (AGENT_DEPENDENCY_IDS.has(dependency.id)) {
     const lastSuccess = Date.parse(dependency.last_success_at);
     const lastFailure = Date.parse(dependency.last_failure_at);
     const hasSuccess = Number.isFinite(lastSuccess);
     const hasFailure = Number.isFinite(lastFailure);
     if (hasFailure && (!hasSuccess || lastFailure >= lastSuccess)) {
-      return `Last failed run ${formatTimestamp(dependency.last_failure_at)}`;
+      return t('timing.lastFailed', { time: formatDateTime(dependency.last_failure_at, locale) });
     }
     if (hasSuccess) {
-      return `Last successful run ${formatTimestamp(dependency.last_success_at)}`;
+      return t('timing.lastSuccessful', { time: formatDateTime(dependency.last_success_at, locale) });
     }
-    return 'No recent run';
+    return t('timing.noRecentRun');
   }
   if (dependency.checked_at) {
-    return `Checked at ${formatTimestamp(dependency.checked_at)}`;
+    return t('timing.checkedAt', { time: formatDateTime(dependency.checked_at, locale) });
   }
-  if (dependency.evidence === 'recent_execution') return 'No recent run';
-  return 'No recent check';
+  if (dependency.evidence === 'recent_execution') return t('timing.noRecentRun');
+  return t('timing.noRecentCheck');
+};
+
+const dependencyMessage = (dependency, t) => {
+  if (dependency.problem?.provider_code === 'token_quota_reached') {
+    return t('problems.provider_quota.dependencyMessage');
+  }
+  if (!STATUS_PRESENTATION[dependency.status]) return dependency.message;
+  const group = AGENT_DEPENDENCY_IDS.has(dependency.id)
+    ? 'agent'
+    : dependency.id === 'openllmetry' ? 'openllmetry' : 'service';
+  return t(`dependencyMessages.${group}.${dependency.status}`, { label: dependency.label });
+};
+
+const statusCodeLabel = (status) => (
+  status === 403 ? '403 Forbidden' : status ? String(status) : '—'
+);
+
+const DependencyProblem = ({ problem }) => {
+  const { t } = useTranslation('status');
+  if (!problem) return null;
+  return (
+    <dl className="system-status-problem">
+      <div>
+        <dt>{t('problems.fields.code')}</dt>
+        <dd><code>{problem.provider_code}</code></dd>
+      </div>
+      <div>
+        <dt>{t('problems.fields.httpStatus')}</dt>
+        <dd><code>{statusCodeLabel(problem.http_status)}</code></dd>
+      </div>
+      {problem.trace_id && (
+        <div>
+          <dt>{t('problems.fields.traceId')}</dt>
+          <dd><code>{problem.trace_id}</code></dd>
+        </div>
+      )}
+    </dl>
+  );
+};
+
+const overallPresentation = (overall, t) => {
+  if (!overall) return null;
+  if (!['ready', 'limited', 'unavailable'].includes(overall.status)) return overall;
+  return {
+    status: overall.status,
+    title: t(`overall.${overall.status}.title`),
+    message: t(`overall.${overall.status}.message`),
+  };
 };
 
 const SystemStatus = () => {
+  const { t, i18n } = useTranslation('status');
   const {
     status,
     isLoading,
@@ -141,22 +169,24 @@ const SystemStatus = () => {
   const lastRefreshAttemptRef = useRef(performance.now());
   const announceNextRefreshRef = useRef(false);
   const hasStatus = Boolean(status);
-  const shownOverall = error || isStale
-    ? STATUS_UNAVAILABLE_OVERALL
-    : status?.overall;
+  const shownOverall = useMemo(() => (
+    error || isStale
+      ? { status: 'unknown', title: t('overall.fallback.title'), message: t('overall.fallback.message') }
+      : overallPresentation(status?.overall, t)
+  ), [error, isStale, status?.overall, t]);
 
   useEffect(() => {
     if (previousRefreshing.current && !isRefreshing) {
       if (announceNextRefreshRef.current && !error && hasStatus && shownOverall) {
         setRefreshAnnouncement((current) => ({
-          message: `Demo status refreshed. ${shownOverall.title}.`,
+          message: t('overall.refreshAnnouncement', { title: shownOverall.title }),
           sequence: current.sequence + 1,
         }));
       }
       announceNextRefreshRef.current = false;
     }
     previousRefreshing.current = isRefreshing;
-  }, [error, hasStatus, isRefreshing, shownOverall]);
+  }, [error, hasStatus, isRefreshing, shownOverall, t]);
 
   const requestRefresh = useCallback((announce = false) => {
     lastRefreshAttemptRef.current = performance.now();
@@ -191,15 +221,15 @@ const SystemStatus = () => {
     };
   }, [refreshIfDue]);
 
-  const capabilities = hasStatus ? capabilityItems(status, isStale) : [];
-  const dependencies = hasStatus ? dependencyItems(status, isStale) : [];
+  const capabilities = hasStatus ? capabilityItems(status, isStale, t) : [];
+  const dependencies = hasStatus ? dependencyItems(status, isStale, t) : [];
 
   return (
     <div className="system-status-page">
       <header className="system-status-page__header">
         <div>
-          <h1>Demo status</h1>
-          <p>See which parts of the loan demo are available before you begin.</p>
+          <h1>{t('page.heading')}</h1>
+          <p>{t('page.description')}</p>
         </div>
         <Button
           className="system-status-refresh"
@@ -209,7 +239,7 @@ const SystemStatus = () => {
           disabled={isLoading || isRefreshing}
           onClick={handleManualRefresh}
         >
-          {error ? 'Retry' : 'Refresh'}
+          {error ? t('actions.retry') : t('actions.refresh')}
         </Button>
       </header>
 
@@ -228,26 +258,26 @@ const SystemStatus = () => {
                 {isRefreshing && (
                   <InlineLoading
                     aria-live="off"
-                    description="Checking latest status"
-                    iconDescription="Checking latest status"
+                    description={t('refreshing')}
+                    iconDescription={t('refreshing')}
                     status="active"
                   />
                 )}
               </div>
               {isStale && (
                 <p className="system-status-stale-note">
-                  Refresh before relying on these results.
+                  {t('stale')}
                 </p>
               )}
             </div>
           </>
         ) : (
           <div className="system-status-overall__loading">
-            <h2 id="overall-status-heading">Checking demo status</h2>
+            <h2 id="overall-status-heading">{t('overall.checking')}</h2>
             <InlineLoading
               aria-live="off"
-              description="Checking demo status"
-              iconDescription="Checking demo status"
+              description={t('overall.checking')}
+              iconDescription={t('overall.checking')}
               status="active"
             />
           </div>
@@ -255,9 +285,9 @@ const SystemStatus = () => {
       </section>
 
       <section className="system-status-capabilities" aria-labelledby="capabilities-heading">
-        <h2 id="capabilities-heading">What you can do now</h2>
+        <h2 id="capabilities-heading">{t('capabilities.heading')}</h2>
         {hasStatus ? (
-          <ul className="system-status-capability-grid" aria-label="Demo capabilities">
+          <ul className="system-status-capability-grid" aria-label={t('capabilities.listLabel')}>
             {capabilities.map((capability) => (
               <li className="system-status-capability" key={capability.id}>
                 <div className="system-status-capability__heading">
@@ -270,20 +300,18 @@ const SystemStatus = () => {
           </ul>
         ) : (
           <p className="system-status-capabilities__empty">
-            Capability details will appear when the latest status is available.
+            {t('capabilities.empty')}
           </p>
         )}
       </section>
 
-      <section className="system-status-technical" aria-label="Technical status">
+      <section className="system-status-technical" aria-label={t('technical.ariaLabel')}>
         <Accordion align="start" size="lg">
-          <AccordionItem title="Technical details">
+          <AccordionItem title={t('technical.title')}>
             {dependencies.length > 0 ? (
-              <ul className="system-status-dependencies" aria-label="Technical dependencies">
+              <ul className="system-status-dependencies" aria-label={t('technical.listLabel')}>
                 {dependencies.map((dependency) => {
-                  const statusLabel = (
-                    STATUS_PRESENTATION[dependency.status] || STATUS_PRESENTATION.unknown
-                  ).label;
+                  const statusLabel = t(`statuses.${STATUS_PRESENTATION[dependency.status] ? dependency.status : 'unknown'}`);
                   return (
                     <li
                       className="system-status-dependency"
@@ -295,14 +323,15 @@ const SystemStatus = () => {
                         <StatusMark status={dependency.status} />
                       </div>
                       <div className="system-status-dependency__details">
-                        <p>{dependency.message}</p>
+                        <p>{dependencyMessage(dependency, t)}</p>
+                        <DependencyProblem problem={dependency.problem} />
                         <p className="system-status-dependency__meta">
-                          <span>{EVIDENCE_LABELS[dependency.evidence] || 'Not verified'}</span>
-                          <span>{dependencyTiming(dependency)}</span>
+                          <span>{t(`evidence.${dependency.evidence}`, { defaultValue: t('evidence.unknown') })}</span>
+                          <span>{dependencyTiming(dependency, t, i18n.resolvedLanguage)}</span>
                         </p>
                         {dependency.id === 'openllmetry' && (
                           <p className="system-status-dependency__note">
-                            Does not affect demo availability.
+                            {t('technical.openllmetryNote')}
                           </p>
                         )}
                       </div>
@@ -312,7 +341,7 @@ const SystemStatus = () => {
               </ul>
             ) : (
               <p className="system-status-technical__empty">
-                Technical status is unavailable until the next successful check.
+                {t('technical.empty')}
               </p>
             )}
           </AccordionItem>

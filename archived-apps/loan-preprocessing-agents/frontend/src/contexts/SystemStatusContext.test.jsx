@@ -7,6 +7,7 @@ vi.mock('../services/systemStatus', () => ({ fetchSystemStatus: fetchSystemStatu
 
 import { SystemStatusProvider } from './SystemStatusContext';
 import { useSystemStatus } from './useSystemStatus';
+import i18n from '../i18n/config';
 
 const payload = {
   overall: { status: 'ready', title: 'Ready', message: 'All systems are ready.' },
@@ -37,7 +38,8 @@ const Probe = ({ onRender }) => {
 };
 
 describe('SystemStatusProvider', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US');
     vi.useFakeTimers();
     fetchSystemStatusMock.mockReset();
   });
@@ -158,5 +160,17 @@ describe('SystemStatusProvider', () => {
 
     expect(screen.getByTestId('stale')).toHaveTextContent('true');
     expect(screen.getByTestId('label')).toHaveTextContent('Status data is out of date');
+  });
+
+  it('updates relative timing language without fetching status again', async () => {
+    fetchSystemStatusMock.mockResolvedValue(payload);
+    render(<SystemStatusProvider><Probe /></SystemStatusProvider>);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(screen.getByTestId('label')).toHaveTextContent('Checked just now');
+    expect(fetchSystemStatusMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await i18n.changeLanguage('zh-TW'); });
+    expect(screen.getByTestId('label')).toHaveTextContent('剛剛檢查');
+    expect(fetchSystemStatusMock).toHaveBeenCalledTimes(1);
   });
 });

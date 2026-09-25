@@ -1,0 +1,163 @@
+{
+  "method": {
+    "heading": "选择申请方式",
+    "subtitle": "选择您希望如何提交贷款申请",
+    "form": { "title": "在线填写申请表", "description": "在线逐步完成申请表" },
+    "pdf": { "title": "上传已填写的 PDF", "description": "上传已完成的 PDF 申请表" }
+  },
+  "steps": {
+    "personal": "个人信息",
+    "employment": "就业信息",
+    "loan": "贷款信息",
+    "financial": "财务信息",
+    "documents": "文件上传",
+    "review": "检查并提交",
+    "pdfUpload": "上传申请表",
+    "supportingDocuments": "证明文件"
+  },
+  "header": {
+    "heading": "贷款申请",
+    "formSubtitle": "填写以下表格以申请贷款",
+    "pdfSubtitle": "上传已完成的申请表及证明文件",
+    "changeMethod": "更改申请方式"
+  },
+  "preset": {
+    "eyebrow": "POC 快速测试",
+    "heading": "加载完整测试申请",
+    "description": "选择预期结果；系统会填写字段、附上示例文件并带您前往检查页。",
+    "loadPass": "加载通过示例",
+    "loadingPass": "正在加载通过示例…",
+    "loadReject": "加载拒绝示例",
+    "loadingReject": "正在加载拒绝示例…",
+    "passLoaded": "已加载 POC 通过示例",
+    "rejectLoaded": "已加载 POC 拒绝示例",
+    "loadedSubtitle": "请检查准备好的数据，确认后再提交。",
+    "loadError": "无法加载 POC 示例"
+  },
+  "sections": {
+    "personal": "个人信息",
+    "employment": "就业信息",
+    "loan": "贷款信息",
+    "financial": "财务信息"
+  },
+  "fields": {
+    "firstName": "名字 *",
+    "lastName": "姓氏 *",
+    "email": "电子邮箱 *",
+    "phone": "电话号码 *",
+    "dateOfBirth": "出生日期 *",
+    "datePlaceholder": "年/月/日",
+    "ssn": "社会安全号码 *",
+    "maritalStatus": "婚姻状况 *",
+    "employmentStatus": "就业状态 *",
+    "employer": "雇主名称 *",
+    "jobTitle": "职位 *",
+    "monthlyIncome": "月收入 *",
+    "employmentDuration": "您在当前雇主任职多久？",
+    "loanType": "贷款类型 *",
+    "loanAmount": "申请贷款金额 *",
+    "loanPurpose": "贷款用途 *",
+    "loanPurposeHelp": "请说明您计划如何使用这笔贷款",
+    "downPayment": "首付款（如适用）",
+    "monthlyExpenses": "月支出 *",
+    "monthlyExpensesHelp": "包括房租、水电、餐饮、交通等。",
+    "creditScore": "信用分数范围 *",
+    "additionalInformation": "其他信息",
+    "bankingRelationship": "我目前与本机构有银行业务关系",
+    "hasOtherLoans": "我目前还有其他未偿贷款"
+  },
+  "options": {
+    "marital": { "placeholder": "选择婚姻状况", "single": "单身", "married": "已婚", "divorced": "离婚", "widowed": "丧偶" },
+    "employment": { "placeholder": "选择就业状态", "employed": "受雇", "selfEmployed": "自雇", "unemployed": "待业", "retired": "退休", "student": "学生" },
+    "duration": { "placeholder": "选择时长", "lessThanOne": "少于 1 年", "oneToTwo": "1–2 年", "twoToFive": "2–5 年", "fiveToTen": "5–10 年", "moreThanTen": "超过 10 年" },
+    "loanType": { "placeholder": "选择贷款类型", "personal": "个人贷款", "auto": "汽车贷款", "home": "住房贷款", "business": "企业贷款", "homeRenovation": "房屋装修" },
+    "credit": { "excellent": "优秀（750 以上）", "good": "良好（700–749）", "fair": "一般（650–699）", "poor": "较差（低于 650）", "unknown": "不清楚" }
+  },
+  "documents": {
+    "heading": "文件上传",
+    "subtitle": "请上传完成申请所需的文件",
+    "chooseFile": "选择文件",
+    "clearFile": "清除文件",
+    "fileUploaded": "已上传文件：",
+    "names": { "applicationPdf": "PDF 申请表", "idProof": "身份证明", "incomeProof": "收入证明", "addressProof": "地址证明", "ssn": "社会安全号码文件" },
+    "idProof": { "legend": "身份证明 *", "upload": "上传身份证明（PDF、JPG、PNG）" },
+    "incomeProof": { "legend": "收入证明 *", "upload": "上传收入证明（PDF、JPG、PNG）" },
+    "addressProof": { "legend": "地址证明 *", "upload": "上传地址证明（PDF、JPG、PNG）" },
+    "additional": { "legend": "其他文件（选填）", "upload": "上传其他文件（PDF、JPG、PNG）" }
+  },
+  "pdf": {
+    "heading": "上传申请 PDF",
+    "subtitle": "请上传已完成的贷款申请表",
+    "legend": "PDF 申请表 *",
+    "chooseFile": "选择 PDF 文件",
+    "upload": "上传已填写的申请表（仅限 PDF）",
+    "uploaded": "已上传 PDF 申请表："
+  },
+  "review": {
+    "heading": "检查您的申请",
+    "name": "姓名",
+    "email": "电子邮箱",
+    "phone": "电话",
+    "maritalStatus": "婚姻状况",
+    "employment": "就业信息",
+    "status": "状态",
+    "employer": "雇主",
+    "jobTitle": "职位",
+    "monthlyIncome": "月收入",
+    "loanDetails": "贷款明细",
+    "type": "类型",
+    "amount": "金额",
+    "purpose": "用途",
+    "downPayment": "首付款",
+    "financialInformation": "财务信息",
+    "monthlyExpenses": "月支出",
+    "creditScore": "信用分数",
+    "uploadedDocuments": "已上传文件",
+    "applicationPdf": "PDF 申请表",
+    "idProof": "身份证明",
+    "incomeProof": "收入证明",
+    "addressProof": "地址证明",
+    "additionalDocuments": "其他文件",
+    "usdAmount": "US${{value}}"
+  },
+  "agreements": {
+    "heading": "必要同意事项",
+    "terms": "我同意条款和条件",
+    "credit": "我授权进行信用审查"
+  },
+  "validation": {
+    "firstName": "名字为必填项",
+    "lastName": "姓氏为必填项",
+    "email": "电子邮箱为必填项",
+    "phone": "电话号码为必填项",
+    "dateOfBirth": "出生日期为必填项",
+    "ssn": "社会安全号码为必填项",
+    "maritalStatus": "婚姻状况为必填项",
+    "employmentStatus": "就业状态为必填项",
+    "employer": "雇主为必填项",
+    "jobTitle": "职位为必填项",
+    "monthlyIncome": "请输入有效的月收入",
+    "loanType": "贷款类型为必填项",
+    "loanAmount": "请输入有效的贷款金额",
+    "loanPurpose": "贷款用途为必填项",
+    "monthlyExpenses": "月支出为必填项",
+    "creditScore": "信用分数范围为必填项",
+    "idProof": "必须上传身份证明",
+    "incomeProof": "必须上传收入证明",
+    "addressProof": "必须上传地址证明",
+    "applicationPdf": "必须上传申请 PDF",
+    "agreeToTerms": "您必须同意条款和条件",
+    "agreeToCredit": "您必须同意信用审查"
+  },
+  "actions": { "previous": "上一步", "next": "下一步", "submit": "提交申请", "close": "关闭" },
+  "success": {
+    "heading": "申请已成功提交",
+    "description": "感谢您提交贷款申请。我们会审查您的信息，并在 2–3 个工作日内联系您说明后续步骤。",
+    "reference": "您的申请参考编号是："
+  },
+  "errors": {
+    "fixtureLoad": "无法加载{{document}}。",
+    "submissionFallback": "提交申请时出现问题。",
+    "submission": "提交失败：{{message}}"
+  }
+}

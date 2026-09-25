@@ -1,0 +1,7 @@
+{
+  "page": { "heading": "貸款試算", "subtitle": "估算每月貸款付款金額。" },
+  "fields": { "amount": "貸款金額（美元）", "rate": "年利率（%）", "term": "貸款年期（年）", "invalidAmount": "貸款金額無效", "invalidRate": "利率無效", "invalidTerm": "貸款年期無效" },
+  "errors": { "title": "計算錯誤", "positiveValues": "請在所有欄位輸入正數。" },
+  "actions": { "calculate": "計算" },
+  "results": { "heading": "預估結果", "monthly": "每月付款", "principal": "本金總額", "interest": "利息總額", "total": "付款總額", "empty": "輸入貸款資料並點選「計算」即可查看結果。" }
+}

@@ -1,0 +1,87 @@
+{
+  "sidePanel": { "dialogLabel": "Application processing details", "closeLabel": "Close application details" },
+  "header": { "eyebrow": "Application details", "title": "Loan application", "refresh": "Refresh", "refreshDescription": "Refresh processing details" },
+  "result": { "current": "Current result" },
+  "results": {
+    "passed": { "title": "Validation passed", "description": "The application completed all required validation checks.", "tag": "Passed" },
+    "rejected": { "title": "Application rejected", "description": "The agents completed their review and found validation issues.", "tag": "Rejected" },
+    "processingFailed": { "title": "Processing failed", "description": "The agent workflow stopped before a final decision was produced.", "tag": "Failed" },
+    "pending": { "title": "Waiting to start", "description": "The application is queued for agent processing.", "tag": "Pending" },
+    "processing": { "title": "Processing application", "description": "The agents are reviewing the application and its documents.", "tag": "Processing" },
+    "retrying": { "title": "Temporary interruption", "description": "The workflow is retrying an agent request automatically.", "tag": "Retrying" },
+    "unknown": { "title": "Application status", "description": "Review the available application and processing information below.", "tag": "Unknown" }
+  },
+  "actions": { "retry": "Retry processing", "retrying": "Starting retry…" },
+  "notifications": { "retryUnavailable": "Retry unavailable", "retryFallback": "The application could not be retried." },
+  "failure": {
+    "label": "What happened",
+    "categories": {
+      "provider_quota": { "title": "watsonx.ai quota or service association issue", "description": "The documents were uploaded, but the document processing Agent was refused when it called the model.", "clarification": "Validation did not start. This is not a rejected loan or a document-content error." },
+      "provider_authorization": { "title": "The external AI service refused access", "description": "The Agent started, but the current service credentials or permissions could not complete the model request." },
+      "provider_rate_limit": { "title": "The external AI service is temporarily busy", "description": "The model service is limiting request volume, so this run did not complete." },
+      "provider_unavailable": { "title": "The external AI service is temporarily unavailable", "description": "The Agent started, but the model service did not return a successful response." },
+      "timeout": { "title": "The Agent response timed out", "description": "Processing started, but a complete response did not arrive within the allowed time." },
+      "unknown": { "title": "Agent processing did not complete", "description": "Technical records are available, but the system cannot safely identify a more specific cause." }
+    },
+    "fields": { "stage": "Stopped at", "service": "External service", "code": "Problem code", "httpStatus": "HTTP status", "traceId": "Trace ID" },
+    "stages": { "document_processing_agent": "Document Processing Agent", "document_validation_agent": "Document Validation Agent", "final_decision_agent": "Final Decision Agent", "agent_workflow": "Agent workflow" },
+    "services": { "watsonx_ai": "watsonx.ai", "agent_workflow": "Agent workflow" },
+    "actionHeading": "What to do next",
+    "actions": { "check_service_configuration": "Ask an administrator to check the watsonx.ai Runtime or WML instance association, project permissions, and available quota.", "retry_later": "Try again later. If the issue continues, give the problem code and Trace ID to an administrator.", "review_technical_details": "Open the technical details below and give the problem code and Trace ID to an administrator." },
+    "retryAfterFix": "Retrying will fail again until the service configuration or quota is fixed.",
+    "documentation": "View IBM API documentation",
+    "copyTrace": "Copy Trace ID",
+    "copy": "Copy"
+  },
+  "validation": {
+    "heading": "Validation findings",
+    "fieldLabels": {
+      "document_authenticity": "Document authenticity",
+      "cross_validation": "Cross-document validation",
+      "age_verification": "Age verification",
+      "overall_validation_summary": "Overall summary",
+      "applicant_age": "Applicant age",
+      "dob_consistency": "Date of birth consistency",
+      "status": "Status",
+      "details": "Details",
+      "error": "Error"
+    }
+  },
+  "processing": {
+    "heading": "Agent processing",
+    "description": "Three agents review the documents and produce the final result.",
+    "loading": "Loading processing history",
+    "errorTitle": "Processing history unavailable",
+    "fetchError": "Failed to fetch processing details.",
+    "emptyHeading": "No processing history yet",
+    "emptyDescription": "The agent timeline will appear here after processing begins."
+  },
+  "agents": {
+    "documentProcessing": { "name": "Document processing", "description": "Classifies each document and extracts the application fields." },
+    "documentValidation": { "name": "Document validation", "description": "Checks authenticity, completeness, expiry, and document risk." },
+    "finalDecision": { "name": "Final decision", "description": "Cross-checks the application and returns the validation result." }
+  },
+  "stepStates": { "notStarted": "Not started", "failed": "Failed", "retrying": "Retrying", "complete": "Complete", "processing": "Processing", "stopped": "Stopped" },
+  "runs": { "label": "Run {{number}}", "latest": "Latest" },
+  "technical": { "heading": "Technical details", "eventCount_one": "{{count}} event", "eventCount_other": "{{count}} events", "showRaw": "View raw event", "hideRaw": "Hide raw event" },
+  "eventTypes": { "invoke_agent": "invoke agent", "tool_call": "tool call", "tool_response": "tool response", "retry": "retry", "final_continuation": "final continuation", "demo_final_fallback": "demo final fallback", "agent_response": "agent response" },
+  "events": {
+    "agentStarted": "Agent started",
+    "toolCalled": "Tool called",
+    "toolReturned": "Tool returned data",
+    "retryRequested": "Agent retry requested",
+    "retryAttempt": "Agent retry requested · attempt {{attempt}}",
+    "finalRequestedAgain": "Final decision response requested again",
+    "fallbackCompleted": "POC fallback completed the decision",
+    "agentError": "Agent reported an error",
+    "agentResponse": "Agent returned a response",
+    "streamUpdate": "Agent stream update"
+  },
+  "json": {
+    "controls": "JSON display controls",
+    "expand": "Expand all JSON",
+    "collapse": "Collapse nested JSON",
+    "copy": "Copy JSON",
+    "treeLabel": "Structured JSON data"
+  }
+}

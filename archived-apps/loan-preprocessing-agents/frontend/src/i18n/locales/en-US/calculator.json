@@ -1,0 +1,14 @@
+{
+  "page": { "heading": "Loan Calculator", "subtitle": "Estimate your monthly loan payments." },
+  "fields": {
+    "amount": "Loan Amount ($)", "rate": "Annual Interest Rate (%)", "term": "Loan Term (Years)",
+    "invalidAmount": "Invalid amount", "invalidRate": "Invalid rate", "invalidTerm": "Invalid term"
+  },
+  "errors": { "title": "Calculation Error", "positiveValues": "Please fill in all fields with positive values." },
+  "actions": { "calculate": "Calculate" },
+  "results": {
+    "heading": "Your Estimated Results", "monthly": "Monthly Payment", "principal": "Total Principal Paid",
+    "interest": "Total Interest Paid", "total": "Total of All Payments",
+    "empty": "Enter your loan details and click \"Calculate\" to see your results."
+  }
+}

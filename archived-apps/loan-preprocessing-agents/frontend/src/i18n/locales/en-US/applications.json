@@ -1,0 +1,37 @@
+{
+  "page": {
+    "heading": "My Applications",
+    "intro": "Here is a list of your submitted loan applications.",
+    "subtitle": "You can hover on a row and click to see the detailed steps followed by agents.",
+    "scrollHint": "Swipe sideways to view status, details, and submitted date."
+  },
+  "loading": "Loading applications...",
+  "errors": {
+    "title": "Failed to load applications",
+    "fetch": "Failed to fetch applications.",
+    "fallback": "Please try again later."
+  },
+  "empty": {
+    "heading": "No applications yet",
+    "description": "Submitted loan applications will appear here."
+  },
+  "headers": {
+    "applicationId": "Application ID",
+    "applicantName": "Applicant Name",
+    "loanType": "Loan Type",
+    "amount": "Amount",
+    "status": "Status",
+    "details": "Details",
+    "submittedDate": "Submitted Date"
+  },
+  "viewDetails": "View processing details",
+  "statuses": {
+    "approved": "Approved",
+    "passed": "Passed",
+    "pending": "Pending",
+    "processing": "Processing",
+    "retrying": "Retrying",
+    "rejected": "Rejected",
+    "processingFailed": "Processing Failed"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Button,
   TextInput,
@@ -25,6 +26,7 @@ import { User, Settings, Help, DocumentPdf, Document } from '@carbon/react/icons
 import { authFetch } from '../../services/api';
 import { buildApiUrl } from '../../services/apiBaseUrl';
 import CapabilityNotice from '../CapabilityNotice/CapabilityNotice';
+import { formatNumber } from '../../i18n/format';
 
 // Import the new CSS file
 import './LoanApplication.css';
@@ -84,15 +86,38 @@ const DEMO_PRESETS = {
   },
 };
 
-const DEMO_FILES = {
-  applicationPdf: ['Loan-Application-Form.pdf', 'application/pdf'],
-  idProof: ['ID-Doc.png', 'image/png'],
-  incomeProof: ['Income-Doc.png', 'image/png'],
-  addressProof: ['Address-Doc.png', 'image/png'],
-  ssn: ['SSN.png', 'image/png'],
+const DISPLAY_OPTION_KEYS = {
+  marital: {
+    single: 'single',
+    married: 'married',
+    divorced: 'divorced',
+    widowed: 'widowed',
+  },
+  employment: {
+    employed: 'employed',
+    'self-employed': 'selfEmployed',
+    unemployed: 'unemployed',
+    retired: 'retired',
+    student: 'student',
+  },
+  loanType: {
+    Personal: 'personal',
+    Auto: 'auto',
+    Home: 'home',
+    Business: 'business',
+    'Home Renovation': 'homeRenovation',
+  },
+  credit: {
+    excellent: 'excellent',
+    good: 'good',
+    fair: 'fair',
+    poor: 'poor',
+    unknown: 'unknown',
+  },
 };
 
 const LoanApplication = () => {
+  const { i18n, t } = useTranslation('application');
   const demoRequestIdRef = useRef(0);
   const [applicationMode, setApplicationMode] = useState(null); // 'form' or 'pdf'
   const [currentStep, setCurrentStep] = useState(0);
@@ -146,19 +171,24 @@ const LoanApplication = () => {
 
   const [errors, setErrors] = useState({});
 
+  const displayOption = (group, value) => {
+    const key = DISPLAY_OPTION_KEYS[group]?.[value];
+    return key ? t(`options.${group}.${key}`) : value;
+  };
+
   const formSteps = [
-    'Personal Information',
-    'Employment Details',
-    'Loan Information',
-    'Financial Details',
-    'Document Upload',
-    'Review & Submit'
+    t('steps.personal'),
+    t('steps.employment'),
+    t('steps.loan'),
+    t('steps.financial'),
+    t('steps.documents'),
+    t('steps.review')
   ];
 
   const pdfSteps = [
-    'Upload Application',
-    'Supporting Documents',
-    'Review & Submit'
+    t('steps.pdfUpload'),
+    t('steps.supportingDocuments'),
+    t('steps.review')
   ];
 
   const steps = applicationMode === 'form' ? formSteps : pdfSteps;
@@ -221,18 +251,18 @@ const LoanApplication = () => {
       : ['idProof', 'incomeProof', 'addressProof', 'ssn'];
 
     try {
-      const fixtureEntries = await Promise.all(fileKeys.map(async (fileKey) => {
-        const response = await authFetch(buildApiUrl(`/demo_fixtures/${scenario}/${fileKey}`));
-        if (!response.ok) {
-          throw new Error(`Could not load ${fileKey}.`);
+      const response = await authFetch(buildApiUrl(`/demo_fixtures/${scenario}/manifest`));
+      if (!response.ok) {
+        throw new Error(t('errors.fixtureLoad', { document: t('preset.title') }));
+      }
+      const manifest = await response.json();
+      const fixtureEntries = fileKeys.map((fileKey) => {
+        const fixture = manifest.files?.[fileKey];
+        if (!fixture?.filename || !fixture?.content_type) {
+          throw new Error(t('errors.fixtureLoad', { document: t(`documents.names.${fileKey}`) }));
         }
-        const blob = await response.blob();
-        const [baseName, mediaType] = DEMO_FILES[fileKey];
-        return [
-          fileKey,
-          new File([blob], `demo-${scenario}-${baseName}`, { type: mediaType }),
-        ];
-      }));
+        return [fileKey, new File([], fixture.filename, { type: fixture.content_type })];
+      });
       const fixtures = Object.fromEntries(fixtureEntries);
       if (demoRequestIdRef.current !== requestId) {
         return;
@@ -280,59 +310,59 @@ const LoanApplication = () => {
     if (applicationMode === 'form') {
       switch(step) {
         case 0: // Personal Information
-          if (!formData.firstName) newErrors.firstName = 'First name is required';
-          if (!formData.lastName) newErrors.lastName = 'Last name is required';
-          if (!formData.email) newErrors.email = 'Email is required';
-          if (!formData.phone) newErrors.phone = 'Phone number is required';
-          if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
-          if (!formData.ssn) newErrors.ssn = 'SSN is required';
-          if (!formData.maritalStatus) newErrors.maritalStatus = 'Marital status is required';
+          if (!formData.firstName) newErrors.firstName = 'validation.firstName';
+          if (!formData.lastName) newErrors.lastName = 'validation.lastName';
+          if (!formData.email) newErrors.email = 'validation.email';
+          if (!formData.phone) newErrors.phone = 'validation.phone';
+          if (!formData.dateOfBirth) newErrors.dateOfBirth = 'validation.dateOfBirth';
+          if (!formData.ssn) newErrors.ssn = 'validation.ssn';
+          if (!formData.maritalStatus) newErrors.maritalStatus = 'validation.maritalStatus';
           break;
           
         case 1: // Employment
-          if (!formData.employmentStatus) newErrors.employmentStatus = 'Employment status is required';
-          if (!formData.employer) newErrors.employer = 'Employer is required';
-          if (!formData.jobTitle) newErrors.jobTitle = 'Job title is required';
-          if (!formData.monthlyIncome || formData.monthlyIncome <= 0) newErrors.monthlyIncome = 'Valid monthly income is required';
+          if (!formData.employmentStatus) newErrors.employmentStatus = 'validation.employmentStatus';
+          if (!formData.employer) newErrors.employer = 'validation.employer';
+          if (!formData.jobTitle) newErrors.jobTitle = 'validation.jobTitle';
+          if (!formData.monthlyIncome || formData.monthlyIncome <= 0) newErrors.monthlyIncome = 'validation.monthlyIncome';
           break;
           
         case 2: // Loan Information
-          if (!formData.loanType) newErrors.loanType = 'Loan type is required';
-          if (!formData.loanAmount || formData.loanAmount <= 0) newErrors.loanAmount = 'Valid loan amount is required';
-          if (!formData.loanPurpose) newErrors.loanPurpose = 'Loan purpose is required';
+          if (!formData.loanType) newErrors.loanType = 'validation.loanType';
+          if (!formData.loanAmount || formData.loanAmount <= 0) newErrors.loanAmount = 'validation.loanAmount';
+          if (!formData.loanPurpose) newErrors.loanPurpose = 'validation.loanPurpose';
           break;
           
         case 3: // Financial Details
-          if (formData.monthlyExpenses < 0) newErrors.monthlyExpenses = 'Monthly expenses is required';
-          if (!formData.creditScore) newErrors.creditScore = 'Credit score range is required';
+          if (formData.monthlyExpenses < 0) newErrors.monthlyExpenses = 'validation.monthlyExpenses';
+          if (!formData.creditScore) newErrors.creditScore = 'validation.creditScore';
           break;
           
         case 4: // Document Upload
-          if (!uploadedFiles.idProof) newErrors.idProof = 'ID proof is required';
-          if (!uploadedFiles.incomeProof) newErrors.incomeProof = 'Income proof is required';
-          if (!uploadedFiles.addressProof) newErrors.addressProof = 'Address proof is required';
+          if (!uploadedFiles.idProof) newErrors.idProof = 'validation.idProof';
+          if (!uploadedFiles.incomeProof) newErrors.incomeProof = 'validation.incomeProof';
+          if (!uploadedFiles.addressProof) newErrors.addressProof = 'validation.addressProof';
           break;
           
         case 5: // Review & Submit
-          if (!formData.agreeToTerms) newErrors.agreeToTerms = 'You must agree to terms and conditions';
-          if (!formData.agreeToCredit) newErrors.agreeToCredit = 'You must agree to credit check';
+          if (!formData.agreeToTerms) newErrors.agreeToTerms = 'validation.agreeToTerms';
+          if (!formData.agreeToCredit) newErrors.agreeToCredit = 'validation.agreeToCredit';
           break;
       }
     } else {
       switch(step) {
         case 0: // Upload Application
-          if (!uploadedFiles.applicationPdf) newErrors.applicationPdf = 'Application PDF is required';
+          if (!uploadedFiles.applicationPdf) newErrors.applicationPdf = 'validation.applicationPdf';
           break;
           
         case 1: // Supporting Documents
-          if (!uploadedFiles.idProof) newErrors.idProof = 'ID proof is required';
-          if (!uploadedFiles.incomeProof) newErrors.incomeProof = 'Income proof is required';
-          if (!uploadedFiles.addressProof) newErrors.addressProof = 'Address proof is required';
+          if (!uploadedFiles.idProof) newErrors.idProof = 'validation.idProof';
+          if (!uploadedFiles.incomeProof) newErrors.incomeProof = 'validation.incomeProof';
+          if (!uploadedFiles.addressProof) newErrors.addressProof = 'validation.addressProof';
           break;
           
         case 2: // Review & Submit
-          if (!formData.agreeToTerms) newErrors.agreeToTerms = 'You must agree to terms and conditions';
-          if (!formData.agreeToCredit) newErrors.agreeToCredit = 'You must agree to credit check';
+          if (!formData.agreeToTerms) newErrors.agreeToTerms = 'validation.agreeToTerms';
+          if (!formData.agreeToCredit) newErrors.agreeToCredit = 'validation.agreeToCredit';
           break;
       }
     }
@@ -373,9 +403,14 @@ const LoanApplication = () => {
     try {
         if (demoScenario) {
             data.append('demoScenario', demoScenario);
-        }
+            if (applicationMode === 'form') {
+                endpoint = buildApiUrl('/submit_demo_form');
+                data.append('formDataJson', JSON.stringify(formData));
+            } else {
+                endpoint = buildApiUrl('/submit_demo_pdf');
+            }
         // 2. Build the FormData object based on the application mode
-        if (applicationMode === 'form') {
+        } else if (applicationMode === 'form') {
             endpoint = buildApiUrl('/submit_form');
             
             // Append the form field data as a single JSON string
@@ -431,7 +466,7 @@ const LoanApplication = () => {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || 'Something went wrong with the submission.');
+            throw new Error(errorData.detail || t('errors.submissionFallback'));
         }
 
         const result = await response.json();
@@ -441,7 +476,7 @@ const LoanApplication = () => {
     } catch (error) {
         // 5. Handle errors
         console.error('Submission failed:', error);
-        alert(`Submission failed: ${error.message}`); // You can replace this with a more elegant notification
+        alert(t('errors.submission', { message: error.message }));
     } finally {
         // 6. Always stop the loading indicator
         setIsSubmitting(false);
@@ -451,22 +486,22 @@ const LoanApplication = () => {
   const renderModeSelection = () => (
     <div className="form-step-container centered-content">
       <div className="text-center">
-        <Heading>Choose Your Application Method</Heading>
+        <Heading>{t('method.heading')}</Heading>
         <CapabilityNotice capabilityIds={['submit_application', 'process_documents', 'generate_decision']} />
-        <p className="page-subtitle">Select how you'd like to submit your loan application</p>
+        <p className="page-subtitle">{t('method.subtitle')}</p>
       </div>
       
       <div className="mode-selection-grid">
         <Tile className="mode-selection-tile" onClick={() => setApplicationMode('form')}>
           <Document size={48} className="tile-icon icon-blue" />
-          <Heading className="tile-heading">Fill Application Form</Heading>
-          <p>Complete the application form step by step online</p>
+          <Heading className="tile-heading">{t('method.form.title')}</Heading>
+          <p>{t('method.form.description')}</p>
         </Tile>
         
         <Tile className="mode-selection-tile" onClick={() => setApplicationMode('pdf')}>
           <DocumentPdf size={48} className="tile-icon icon-red" />
-          <Heading className="tile-heading">Upload Filled PDF</Heading>
-          <p>Upload your completed application form as PDF</p>
+          <Heading className="tile-heading">{t('method.pdf.title')}</Heading>
+          <p>{t('method.pdf.description')}</p>
         </Tile>
       </div>
     </div>
@@ -474,58 +509,61 @@ const LoanApplication = () => {
 
   const renderDocumentUpload = () => (
     <div className="form-step-container">
-      <Heading>Document Upload</Heading>
-      <p className="page-subtitle">Please upload the required documents to complete your application</p>
+      <Heading>{t('documents.heading')}</Heading>
+      <p className="page-subtitle">{t('documents.subtitle')}</p>
       
       <div className="document-upload-grid">
-        <FormGroup legendText="ID Proof *">
+        <FormGroup legendText={t('documents.idProof.legend')}>
           <FileUploader
             accept={['.pdf', '.jpg', '.jpeg', '.png']}
-            buttonLabel="Choose file" filenameStatus="edit" iconDescription="Clear file"
-            labelDescription="Upload your ID proof (PDF, JPG, PNG)"
+            buttonLabel={t('documents.chooseFile')} filenameStatus="edit" iconDescription={t('documents.clearFile')}
+            labelDescription={t('documents.idProof.upload')}
             onChange={(e) => handleFileUpload('idProof', e.target.files)}
             onDelete={() => removeFile('idProof')} size="md"
           />
           {uploadedFiles.idProof && (
-            <InlineNotification kind="success" title="File uploaded:" subtitle={uploadedFiles.idProof.name} hideCloseButton />
+            <InlineNotification kind="success" title={t('documents.fileUploaded')} subtitle={uploadedFiles.idProof.name} hideCloseButton />
           )}
+          {errors.idProof && <InlineNotification kind="error" title={t(errors.idProof)} hideCloseButton />}
         </FormGroup>
         
-        <FormGroup legendText="Income Proof *">
+        <FormGroup legendText={t('documents.incomeProof.legend')}>
           <FileUploader
             accept={['.pdf', '.jpg', '.jpeg', '.png']}
-            buttonLabel="Choose file" filenameStatus="edit" iconDescription="Clear file"
-            labelDescription="Upload your income proof (PDF, JPG, PNG)"
+            buttonLabel={t('documents.chooseFile')} filenameStatus="edit" iconDescription={t('documents.clearFile')}
+            labelDescription={t('documents.incomeProof.upload')}
             onChange={(e) => handleFileUpload('incomeProof', e.target.files)}
             onDelete={() => removeFile('incomeProof')} size="md"
           />
           {uploadedFiles.incomeProof && (
-            <InlineNotification kind="success" title="File uploaded:" subtitle={uploadedFiles.incomeProof.name} hideCloseButton />
+            <InlineNotification kind="success" title={t('documents.fileUploaded')} subtitle={uploadedFiles.incomeProof.name} hideCloseButton />
           )}
+          {errors.incomeProof && <InlineNotification kind="error" title={t(errors.incomeProof)} hideCloseButton />}
         </FormGroup>
         
-        <FormGroup legendText="Address Proof *">
+        <FormGroup legendText={t('documents.addressProof.legend')}>
           <FileUploader
             accept={['.pdf', '.jpg', '.jpeg', '.png']}
-            buttonLabel="Choose file" filenameStatus="edit" iconDescription="Clear file"
-            labelDescription="Upload your address proof (PDF, JPG, PNG)"
+            buttonLabel={t('documents.chooseFile')} filenameStatus="edit" iconDescription={t('documents.clearFile')}
+            labelDescription={t('documents.addressProof.upload')}
             onChange={(e) => handleFileUpload('addressProof', e.target.files)}
             onDelete={() => removeFile('addressProof')} size="md"
           />
           {uploadedFiles.addressProof && (
-            <InlineNotification kind="success" title="File uploaded:" subtitle={uploadedFiles.addressProof.name} hideCloseButton />
+            <InlineNotification kind="success" title={t('documents.fileUploaded')} subtitle={uploadedFiles.addressProof.name} hideCloseButton />
           )}
+          {errors.addressProof && <InlineNotification kind="error" title={t(errors.addressProof)} hideCloseButton />}
         </FormGroup>
         
-        <FormGroup legendText="Additional Documents (Optional)">
+        <FormGroup legendText={t('documents.additional.legend')}>
           <FileUploader
             accept={['.pdf', '.jpg', '.jpeg', '.png']}
-            buttonLabel="Choose file" filenameStatus="edit" iconDescription="Clear file"
-            labelDescription="Upload any additional documents (PDF, JPG, PNG)"
+            buttonLabel={t('documents.chooseFile')} filenameStatus="edit" iconDescription={t('documents.clearFile')}
+            labelDescription={t('documents.additional.upload')}
             onChange={(e) => handleFileUpload('additionalDocs', e.target.files)} size="md" multiple
           />
           {uploadedFiles.additionalDocs.map((file, index) => (
-            <InlineNotification key={index} kind="success" title="File uploaded:" subtitle={file.name} onClose={() => removeFile('additionalDocs', index)} />
+            <InlineNotification key={index} kind="success" title={t('documents.fileUploaded')} subtitle={file.name} onClose={() => removeFile('additionalDocs', index)} />
           ))}
         </FormGroup>
       </div>
@@ -534,156 +572,157 @@ const LoanApplication = () => {
 
   const renderPdfUpload = () => (
     <div className="form-step-container">
-      <Heading>Upload Application PDF</Heading>
-      <p className="page-subtitle">Please upload your completed loan application form</p>
+      <Heading>{t('pdf.heading')}</Heading>
+      <p className="page-subtitle">{t('pdf.subtitle')}</p>
       
-      <FormGroup legendText="Application PDF *">
+      <FormGroup legendText={t('pdf.legend')}>
         <FileUploader
-          accept={['.pdf']} buttonLabel="Choose PDF file" filenameStatus="edit" iconDescription="Clear file"
-          labelDescription="Upload your filled application form (PDF only)"
+          accept={['.pdf']} buttonLabel={t('pdf.chooseFile')} filenameStatus="edit" iconDescription={t('documents.clearFile')}
+          labelDescription={t('pdf.upload')}
           onChange={(e) => handleFileUpload('applicationPdf', e.target.files)}
           onDelete={() => removeFile('applicationPdf')} size="lg"
         />
         {uploadedFiles.applicationPdf && (
-          <InlineNotification kind="success" title="Application PDF uploaded:" subtitle={uploadedFiles.applicationPdf.name} hideCloseButton />
+          <InlineNotification kind="success" title={t('pdf.uploaded')} subtitle={uploadedFiles.applicationPdf.name} hideCloseButton />
         )}
+        {errors.applicationPdf && <InlineNotification kind="error" title={t(errors.applicationPdf)} hideCloseButton />}
       </FormGroup>
     </div>
   );
 
   const renderPersonalInformation = () => (
     <div className="form-step-container">
-      <Heading>Personal Information</Heading>
+      <Heading>{t('sections.personal')}</Heading>
       
       <TextInput
-        id="firstName" labelText="First Name *" value={formData.firstName}
+        id="firstName" labelText={t('fields.firstName')} value={formData.firstName}
         onChange={(e) => handleInputChange('firstName', e.target.value)}
-        invalid={!!errors.firstName} invalidText={errors.firstName}
+        invalid={!!errors.firstName} invalidText={errors.firstName ? t(errors.firstName) : ''}
       />
       
       <TextInput
-        id="lastName" labelText="Last Name *" value={formData.lastName}
+        id="lastName" labelText={t('fields.lastName')} value={formData.lastName}
         onChange={(e) => handleInputChange('lastName', e.target.value)}
-        invalid={!!errors.lastName} invalidText={errors.lastName}
+        invalid={!!errors.lastName} invalidText={errors.lastName ? t(errors.lastName) : ''}
       />
       
       <TextInput
-        id="email" labelText="Email Address *" type="email" value={formData.email}
+        id="email" labelText={t('fields.email')} type="email" value={formData.email}
         onChange={(e) => handleInputChange('email', e.target.value)}
-        invalid={!!errors.email} invalidText={errors.email}
+        invalid={!!errors.email} invalidText={errors.email ? t(errors.email) : ''}
       />
       
       <TextInput
-        id="phone" labelText="Phone Number *" type="tel" value={formData.phone}
+        id="phone" labelText={t('fields.phone')} type="tel" value={formData.phone}
         onChange={(e) => handleInputChange('phone', e.target.value)}
-        invalid={!!errors.phone} invalidText={errors.phone}
+        invalid={!!errors.phone} invalidText={errors.phone ? t(errors.phone) : ''}
       />
       
       <DatePicker datePickerType="single" onChange={(dates) => handleInputChange('dateOfBirth', dates[0])} value={formData.dateOfBirth ? [formData.dateOfBirth] : []}>
         <DatePickerInput
-          id="dateOfBirth" labelText="Date of Birth *" placeholder="mm/dd/yyyy"
-          invalid={!!errors.dateOfBirth} invalidText={errors.dateOfBirth}
+          id="dateOfBirth" labelText={t('fields.dateOfBirth')} placeholder={t('fields.datePlaceholder')}
+          invalid={!!errors.dateOfBirth} invalidText={errors.dateOfBirth ? t(errors.dateOfBirth) : ''}
         />
       </DatePicker>
       
       <TextInput
-        id="ssn" labelText="Social Security Number *" type="password" value={formData.ssn}
+        id="ssn" labelText={t('fields.ssn')} type="password" value={formData.ssn}
         onChange={(e) => handleInputChange('ssn', e.target.value)}
-        invalid={!!errors.ssn} invalidText={errors.ssn}
+        invalid={!!errors.ssn} invalidText={errors.ssn ? t(errors.ssn) : ''}
       />
       
       <Select
-        id="maritalStatus" labelText="Marital Status *" value={formData.maritalStatus}
+        id="maritalStatus" labelText={t('fields.maritalStatus')} value={formData.maritalStatus}
         onChange={(e) => handleInputChange('maritalStatus', e.target.value)}
-        invalid={!!errors.maritalStatus} invalidText={errors.maritalStatus}
+        invalid={!!errors.maritalStatus} invalidText={errors.maritalStatus ? t(errors.maritalStatus) : ''}
       >
-        <SelectItem value="" text="Select marital status" />
-        <SelectItem value="single" text="Single" />
-        <SelectItem value="married" text="Married" />
-        <SelectItem value="divorced" text="Divorced" />
-        <SelectItem value="widowed" text="Widowed" />
+        <SelectItem value="" text={t('options.marital.placeholder')} />
+        <SelectItem value="single" text={t('options.marital.single')} />
+        <SelectItem value="married" text={t('options.marital.married')} />
+        <SelectItem value="divorced" text={t('options.marital.divorced')} />
+        <SelectItem value="widowed" text={t('options.marital.widowed')} />
       </Select>
     </div>
   );
 
   const renderEmploymentDetails = () => (
     <div className="form-step-container">
-        <Heading>Employment Details</Heading>
-        <Select id="employmentStatus" labelText="Employment Status *" value={formData.employmentStatus}
+        <Heading>{t('sections.employment')}</Heading>
+        <Select id="employmentStatus" labelText={t('fields.employmentStatus')} value={formData.employmentStatus}
           onChange={(e) => handleInputChange('employmentStatus', e.target.value)}
-          invalid={!!errors.employmentStatus} invalidText={errors.employmentStatus}>
-          <SelectItem value="" text="Select employment status" />
-          <SelectItem value="employed" text="Employed" />
-          <SelectItem value="self-employed" text="Self Employed" />
-          <SelectItem value="unemployed" text="Unemployed" />
-          <SelectItem value="retired" text="Retired" />
-          <SelectItem value="student" text="Student" />
+          invalid={!!errors.employmentStatus} invalidText={errors.employmentStatus ? t(errors.employmentStatus) : ''}>
+          <SelectItem value="" text={t('options.employment.placeholder')} />
+          <SelectItem value="employed" text={t('options.employment.employed')} />
+          <SelectItem value="self-employed" text={t('options.employment.selfEmployed')} />
+          <SelectItem value="unemployed" text={t('options.employment.unemployed')} />
+          <SelectItem value="retired" text={t('options.employment.retired')} />
+          <SelectItem value="student" text={t('options.employment.student')} />
         </Select>
-        <TextInput id="employer" labelText="Employer Name *" value={formData.employer}
+        <TextInput id="employer" labelText={t('fields.employer')} value={formData.employer}
           onChange={(e) => handleInputChange('employer', e.target.value)}
-          invalid={!!errors.employer} invalidText={errors.employer}/>
-        <TextInput id="jobTitle" labelText="Job Title *" value={formData.jobTitle}
+          invalid={!!errors.employer} invalidText={errors.employer ? t(errors.employer) : ''}/>
+        <TextInput id="jobTitle" labelText={t('fields.jobTitle')} value={formData.jobTitle}
           onChange={(e) => handleInputChange('jobTitle', e.target.value)}
-          invalid={!!errors.jobTitle} invalidText={errors.jobTitle}/>
-        <NumberInput id="monthlyIncome" label="Monthly Income *" value={formData.monthlyIncome}
+          invalid={!!errors.jobTitle} invalidText={errors.jobTitle ? t(errors.jobTitle) : ''}/>
+        <NumberInput id="monthlyIncome" label={t('fields.monthlyIncome')} value={formData.monthlyIncome}
           onChange={(e, { value }) => handleInputChange('monthlyIncome', value)}
-          min={0} step={100} invalid={!!errors.monthlyIncome} invalidText={errors.monthlyIncome}/>
-        <Select id="employmentDuration" labelText="How long have you been with current employer?" value={formData.employmentDuration}
+          min={0} step={100} invalid={!!errors.monthlyIncome} invalidText={errors.monthlyIncome ? t(errors.monthlyIncome) : ''}/>
+        <Select id="employmentDuration" labelText={t('fields.employmentDuration')} value={formData.employmentDuration}
           onChange={(e) => handleInputChange('employmentDuration', e.target.value)}>
-          <SelectItem value="" text="Select duration" />
-          <SelectItem value="less-than-1" text="Less than 1 year" />
-          <SelectItem value="1-2" text="1-2 years" />
-          <SelectItem value="2-5" text="2-5 years" />
-          <SelectItem value="5-10" text="5-10 years" />
-          <SelectItem value="more-than-10" text="More than 10 years" />
+          <SelectItem value="" text={t('options.duration.placeholder')} />
+          <SelectItem value="less-than-1" text={t('options.duration.lessThanOne')} />
+          <SelectItem value="1-2" text={t('options.duration.oneToTwo')} />
+          <SelectItem value="2-5" text={t('options.duration.twoToFive')} />
+          <SelectItem value="5-10" text={t('options.duration.fiveToTen')} />
+          <SelectItem value="more-than-10" text={t('options.duration.moreThanTen')} />
         </Select>
     </div>
   );
 
   const renderLoanInformation = () => (
     <div className="form-step-container">
-        <Heading>Loan Information</Heading>
-        <Select id="loanType" labelText="Loan Type *" value={formData.loanType}
+        <Heading>{t('sections.loan')}</Heading>
+        <Select id="loanType" labelText={t('fields.loanType')} value={formData.loanType}
           onChange={(e) => handleInputChange('loanType', e.target.value)}
-          invalid={!!errors.loanType} invalidText={errors.loanType}>
-          <SelectItem value="" text="Select loan type" />
-          <SelectItem value="Personal" text="Personal Loan" />
-          <SelectItem value="Auto" text="Auto Loan" />
-          <SelectItem value="Home" text="Home Loan" />
-          <SelectItem value="Business" text="Business Loan" />
+          invalid={!!errors.loanType} invalidText={errors.loanType ? t(errors.loanType) : ''}>
+          <SelectItem value="" text={t('options.loanType.placeholder')} />
+          <SelectItem value="Personal" text={t('options.loanType.personal')} />
+          <SelectItem value="Auto" text={t('options.loanType.auto')} />
+          <SelectItem value="Home" text={t('options.loanType.home')} />
+          <SelectItem value="Business" text={t('options.loanType.business')} />
         </Select>
-        <NumberInput id="loanAmount" label="Loan Amount Requested *" value={formData.loanAmount}
+        <NumberInput id="loanAmount" label={t('fields.loanAmount')} value={formData.loanAmount}
           onChange={(e, { value }) => handleInputChange('loanAmount', value)}
-          min={1000} step={1000} invalid={!!errors.loanAmount} invalidText={errors.loanAmount}/>
-        <TextInput id="loanPurpose" labelText="Purpose of Loan *" value={formData.loanPurpose}
+          min={1000} step={1000} invalid={!!errors.loanAmount} invalidText={errors.loanAmount ? t(errors.loanAmount) : ''}/>
+        <TextInput id="loanPurpose" labelText={t('fields.loanPurpose')} value={formData.loanPurpose}
           onChange={(e) => handleInputChange('loanPurpose', e.target.value)}
-          invalid={!!errors.loanPurpose} invalidText={errors.loanPurpose}
-          helperText="Please describe how you plan to use the loan"/>
-        <NumberInput id="downPayment" label="Down Payment (if applicable)" value={formData.downPayment}
+          invalid={!!errors.loanPurpose} invalidText={errors.loanPurpose ? t(errors.loanPurpose) : ''}
+          helperText={t('fields.loanPurposeHelp')}/>
+        <NumberInput id="downPayment" label={t('fields.downPayment')} value={formData.downPayment}
           onChange={(e, { value }) => handleInputChange('downPayment', value)} min={0} step={500}/>
     </div>
   );
 
   const renderFinancialDetails = () => (
     <div className="form-step-container">
-        <Heading>Financial Details</Heading>
-        <NumberInput id="monthlyExpenses" label="Monthly Expenses *" value={formData.monthlyExpenses}
+        <Heading>{t('sections.financial')}</Heading>
+        <NumberInput id="monthlyExpenses" label={t('fields.monthlyExpenses')} value={formData.monthlyExpenses}
           onChange={(e, { value }) => handleInputChange('monthlyExpenses', value)}
-          min={0} step={100} invalid={!!errors.monthlyExpenses} invalidText={errors.monthlyExpenses}
-          helperText="Include rent, utilities, food, transportation, etc."/>
-        <RadioButtonGroup legendText="Credit Score Range *" name="creditScore"
+          min={0} step={100} invalid={!!errors.monthlyExpenses} invalidText={errors.monthlyExpenses ? t(errors.monthlyExpenses) : ''}
+          helperText={t('fields.monthlyExpensesHelp')}/>
+        <RadioButtonGroup legendText={t('fields.creditScore')} name="creditScore"
           valueSelected={formData.creditScore} onChange={(value) => handleInputChange('creditScore', value)}>
-          <RadioButton labelText="Excellent (750+)" value="excellent" />
-          <RadioButton labelText="Good (700-749)" value="good" />
-          <RadioButton labelText="Fair (650-699)" value="fair" />
-          <RadioButton labelText="Poor (Below 650)" value="poor" />
-          <RadioButton labelText="Don't know" value="unknown" />
+          <RadioButton labelText={t('options.credit.excellent')} value="excellent" />
+          <RadioButton labelText={t('options.credit.good')} value="good" />
+          <RadioButton labelText={t('options.credit.fair')} value="fair" />
+          <RadioButton labelText={t('options.credit.poor')} value="poor" />
+          <RadioButton labelText={t('options.credit.unknown')} value="unknown" />
         </RadioButtonGroup>
-        <FormGroup legendText="Additional Information">
-          <Checkbox id="bankingRelationship" labelText="I have an existing banking relationship with this institution"
+        <FormGroup legendText={t('fields.additionalInformation')}>
+          <Checkbox id="bankingRelationship" labelText={t('fields.bankingRelationship')}
             checked={formData.bankingRelationship}
             onChange={(e, { checked }) => handleInputChange('bankingRelationship', checked)}/>
-          <Checkbox id="hasOtherLoans" labelText="I currently have other outstanding loans"
+          <Checkbox id="hasOtherLoans" labelText={t('fields.hasOtherLoans')}
             checked={formData.hasOtherLoans}
             onChange={(e, { checked }) => handleInputChange('hasOtherLoans', checked)}/>
         </FormGroup>
@@ -692,53 +731,53 @@ const LoanApplication = () => {
 
   const renderReviewSubmit = () => (
     <div className="form-step-container review-container">
-        <Heading>Review Your Application</Heading>
+        <Heading>{t('review.heading')}</Heading>
         <div className="review-sections-wrapper">
           {applicationMode === 'form' && (
             <>
               <Section level={4} className="review-section">
-                <Heading>Personal Information</Heading>
-                <p><strong>Name:</strong> {formData.firstName} {formData.lastName}</p>
-                <p><strong>Email:</strong> {formData.email}</p>
-                <p><strong>Phone:</strong> {formData.phone}</p>
-                <p><strong>Marital Status:</strong> {formData.maritalStatus}</p>
+                <Heading>{t('sections.personal')}</Heading>
+                <p><strong>{t('review.name')}:</strong> {formData.firstName} {formData.lastName}</p>
+                <p><strong>{t('review.email')}:</strong> {formData.email}</p>
+                <p><strong>{t('review.phone')}:</strong> {formData.phone}</p>
+                <p><strong>{t('review.maritalStatus')}:</strong> {displayOption('marital', formData.maritalStatus)}</p>
               </Section>
               
               <Section level={4} className="review-section">
-                <Heading>Employment</Heading>
-                <p><strong>Status:</strong> {formData.employmentStatus}</p>
-                <p><strong>Employer:</strong> {formData.employer}</p>
-                <p><strong>Job Title:</strong> {formData.jobTitle}</p>
-                <p><strong>Monthly Income:</strong> ${formData.monthlyIncome?.toLocaleString()}</p>
+                <Heading>{t('review.employment')}</Heading>
+                <p><strong>{t('review.status')}:</strong> {displayOption('employment', formData.employmentStatus)}</p>
+                <p><strong>{t('review.employer')}:</strong> {formData.employer}</p>
+                <p><strong>{t('review.jobTitle')}:</strong> {formData.jobTitle}</p>
+                <p><strong>{t('review.monthlyIncome')}:</strong> {t('review.usdAmount', { value: formatNumber(formData.monthlyIncome, i18n.language) })}</p>
               </Section>
               
               <Section level={4} className="review-section">
-                <Heading>Loan Details</Heading>
-                <p><strong>Type:</strong> {formData.loanType}</p>
-                <p><strong>Amount:</strong> ${formData.loanAmount?.toLocaleString()}</p>
-                <p><strong>Purpose:</strong> {formData.loanPurpose}</p>
-                {formData.downPayment > 0 && <p><strong>Down Payment:</strong> ${formData.downPayment?.toLocaleString()}</p>}
+                <Heading>{t('review.loanDetails')}</Heading>
+                <p><strong>{t('review.type')}:</strong> {displayOption('loanType', formData.loanType)}</p>
+                <p><strong>{t('review.amount')}:</strong> {t('review.usdAmount', { value: formatNumber(formData.loanAmount, i18n.language) })}</p>
+                <p><strong>{t('review.purpose')}:</strong> {formData.loanPurpose}</p>
+                {formData.downPayment > 0 && <p><strong>{t('review.downPayment')}:</strong> {t('review.usdAmount', { value: formatNumber(formData.downPayment, i18n.language) })}</p>}
               </Section>
               
               <Section level={4} className="review-section">
-                <Heading>Financial Information</Heading>
-                <p><strong>Monthly Expenses:</strong> ${formData.monthlyExpenses?.toLocaleString()}</p>
-                <p><strong>Credit Score:</strong> {formData.creditScore}</p>
+                <Heading>{t('review.financialInformation')}</Heading>
+                <p><strong>{t('review.monthlyExpenses')}:</strong> {t('review.usdAmount', { value: formatNumber(formData.monthlyExpenses, i18n.language) })}</p>
+                <p><strong>{t('review.creditScore')}:</strong> {displayOption('credit', formData.creditScore)}</p>
               </Section>
             </>
           )}
           
           <Section level={4} className="review-section">
-            <Heading>Uploaded Documents</Heading>
+            <Heading>{t('review.uploadedDocuments')}</Heading>
             {applicationMode === 'pdf' && uploadedFiles.applicationPdf && (
-              <p><strong>Application PDF:</strong> {uploadedFiles.applicationPdf.name}</p>
+              <p><strong>{t('review.applicationPdf')}:</strong> {uploadedFiles.applicationPdf.name}</p>
             )}
-            {uploadedFiles.idProof && <p><strong>ID Proof:</strong> {uploadedFiles.idProof.name}</p>}
-            {uploadedFiles.incomeProof && <p><strong>Income Proof:</strong> {uploadedFiles.incomeProof.name}</p>}
-            {uploadedFiles.addressProof && <p><strong>Address Proof:</strong> {uploadedFiles.addressProof.name}</p>}
+            {uploadedFiles.idProof && <p><strong>{t('review.idProof')}:</strong> {uploadedFiles.idProof.name}</p>}
+            {uploadedFiles.incomeProof && <p><strong>{t('review.incomeProof')}:</strong> {uploadedFiles.incomeProof.name}</p>}
+            {uploadedFiles.addressProof && <p><strong>{t('review.addressProof')}:</strong> {uploadedFiles.addressProof.name}</p>}
             {uploadedFiles.additionalDocs.length > 0 && (
               <div>
-                <strong>Additional Documents:</strong>
+                <strong>{t('review.additionalDocuments')}:</strong>
                 <ul className="review-doc-list">
                   {uploadedFiles.additionalDocs.map((file, index) => (
                     <li key={index}>{file.name}</li>
@@ -749,15 +788,15 @@ const LoanApplication = () => {
           </Section>
         </div>
         
-        <FormGroup legendText="Required Agreements">
-          <Checkbox id="agreeToTerms" labelText="I agree to the terms and conditions"
+        <FormGroup legendText={t('agreements.heading')}>
+          <Checkbox id="agreeToTerms" labelText={t('agreements.terms')}
             checked={formData.agreeToTerms}
             onChange={(e, { checked }) => handleInputChange('agreeToTerms', checked)}
-            invalid={!!errors.agreeToTerms} invalidText={errors.agreeToTerms}/>
-          <Checkbox id="agreeToCredit" labelText="I authorize a credit check to be performed"
+            invalid={!!errors.agreeToTerms} invalidText={errors.agreeToTerms ? t(errors.agreeToTerms) : ''}/>
+          <Checkbox id="agreeToCredit" labelText={t('agreements.credit')}
             checked={formData.agreeToCredit}
             onChange={(e, { checked }) => handleInputChange('agreeToCredit', checked)}
-            invalid={!!errors.agreeToCredit} invalidText={errors.agreeToCredit}/>
+            invalid={!!errors.agreeToCredit} invalidText={errors.agreeToCredit ? t(errors.agreeToCredit) : ''}/>
         </FormGroup>
     </div>
   );
@@ -807,25 +846,25 @@ const LoanApplication = () => {
           <>
             <div className="page-header">
               <div>
-                <Heading>Loan Application</Heading>
+                <Heading>{t('header.heading')}</Heading>
                 <CapabilityNotice capabilityIds={['submit_application', 'process_documents', 'generate_decision']} />
                 <p className="page-subtitle">
                   {applicationMode === 'form' 
-                    ? 'Complete the form below to apply for your loan' 
-                    : 'Upload your completed application and supporting documents'
+                    ? t('header.formSubtitle')
+                    : t('header.pdfSubtitle')
                   }
                 </p>
                 <Button kind="ghost" size="sm" onClick={resetApplication}>
-                  Change Method
+                  {t('header.changeMethod')}
                 </Button>
               </div>
             </div>
 
             <section className="demo-preset-panel" aria-labelledby="demo-preset-title">
               <div className="demo-preset-copy">
-                <p className="demo-preset-eyebrow">POC Quick Test</p>
-                <Heading id="demo-preset-title">Load a complete test application</Heading>
-                <p>Choose an expected outcome. We will fill the fields, attach sample documents, and take you to review.</p>
+                <p className="demo-preset-eyebrow">{t('preset.eyebrow')}</p>
+                <Heading id="demo-preset-title">{t('preset.heading')}</Heading>
+                <p>{t('preset.description')}</p>
               </div>
               <div className="demo-preset-actions">
                 <Button
@@ -834,7 +873,7 @@ const LoanApplication = () => {
                   disabled={Boolean(loadingDemoScenario)}
                   onClick={() => handleLoadDemoPreset('pass')}
                 >
-                  {loadingDemoScenario === 'pass' ? 'Loading Pass example…' : 'Load Pass example'}
+                  {loadingDemoScenario === 'pass' ? t('preset.loadingPass') : t('preset.loadPass')}
                 </Button>
                 <Button
                   kind="danger--tertiary"
@@ -842,21 +881,21 @@ const LoanApplication = () => {
                   disabled={Boolean(loadingDemoScenario)}
                   onClick={() => handleLoadDemoPreset('reject')}
                 >
-                  {loadingDemoScenario === 'reject' ? 'Loading Reject example…' : 'Load Reject example'}
+                  {loadingDemoScenario === 'reject' ? t('preset.loadingReject') : t('preset.loadReject')}
                 </Button>
               </div>
               {demoScenario && (
                 <InlineNotification
                   kind={demoScenario === 'pass' ? 'success' : 'warning'}
-                  title={`${demoScenario === 'pass' ? 'Pass' : 'Reject'} POC example loaded`}
-                  subtitle="Review the prepared data, then submit when ready."
+                  title={demoScenario === 'pass' ? t('preset.passLoaded') : t('preset.rejectLoaded')}
+                  subtitle={t('preset.loadedSubtitle')}
                   hideCloseButton
                 />
               )}
               {demoPresetError && (
                 <InlineNotification
                   kind="error"
-                  title="Could not load the POC example"
+                  title={t('preset.loadError')}
                   subtitle={demoPresetError}
                   hideCloseButton
                 />
@@ -874,14 +913,14 @@ const LoanApplication = () => {
               
               <div className="button-container">
                 <Button kind="secondary" onClick={handlePrevious} disabled={currentStep === 0}>
-                  Previous
+                  {t('actions.previous')}
                 </Button>
                 
                 {currentStep < steps.length - 1 ? (
-                  <Button onClick={handleNext}>Next</Button>
+                  <Button onClick={handleNext}>{t('actions.next')}</Button>
                 ) : (
                   <Button onClick={handleSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? <Loading small withOverlay={false} /> : 'Submit Application'}
+                    {isSubmitting ? <Loading small withOverlay={false} /> : t('actions.submit')}
                   </Button>
                 )}
               </div>
@@ -892,13 +931,13 @@ const LoanApplication = () => {
       
       <Modal
         open={showSuccessModal} onRequestClose={() => setShowSuccessModal(false)}
-        modalHeading="Application Submitted Successfully" primaryButtonText="Close"
+        modalHeading={t('success.heading')} primaryButtonText={t('actions.close')}
         onRequestSubmit={() => { setShowSuccessModal(false); resetApplication(); setSubmittedAppId(null); }}>
         <div className="modal-content">
-          <p>Thank you for submitting your loan application. We will review your information and contact you within 2-3 business days with next steps.</p>
+          <p>{t('success.description')}</p>
           {submittedAppId && (
             <p>
-                Your application reference number is: <strong>{submittedAppId}</strong>
+                {t('success.reference')} <strong>{submittedAppId}</strong>
             </p>
           )}
         </div>

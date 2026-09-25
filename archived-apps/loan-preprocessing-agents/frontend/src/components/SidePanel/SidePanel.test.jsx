@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import SidePanel from './SidePanel';
+import i18n from '../../i18n/config';
 
 const sidePanelStyles = readFileSync(resolve('src/components/SidePanel/SidePanel.css'), 'utf8');
 
@@ -40,6 +41,15 @@ describe('SidePanel keyboard focus', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(trigger).toHaveFocus();
+  });
+
+  it('localizes the dialog and close button names', async () => {
+    await i18n.changeLanguage('zh-TW');
+    render(<SidePanel isOpen onClose={() => {}}>內容</SidePanel>);
+
+    expect(screen.getByRole('dialog', { name: '申請處理詳細資料' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '關閉申請詳細資料' })).toBeVisible();
+    await i18n.changeLanguage('en-US');
   });
 });
 

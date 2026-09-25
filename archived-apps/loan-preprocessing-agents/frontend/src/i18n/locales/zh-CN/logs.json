@@ -1,0 +1,70 @@
+{
+  "sidePanel": { "dialogLabel": "申请处理详细信息", "closeLabel": "关闭申请详细信息" },
+  "header": { "eyebrow": "申请详细信息", "title": "贷款申请", "refresh": "刷新", "refreshDescription": "刷新处理详细信息" },
+  "result": { "current": "当前结果" },
+  "results": {
+    "passed": { "title": "验证通过", "description": "此申请已完成并通过所有必要的验证检查。", "tag": "已通过" },
+    "rejected": { "title": "申请已拒绝", "description": "Agent 已完成审核并发现验证问题。", "tag": "已拒绝" },
+    "processingFailed": { "title": "处理失败", "description": "Agent 工作流在生成最终决定前停止。", "tag": "失败" },
+    "pending": { "title": "等待开始", "description": "此申请正在等待 Agent 处理。", "tag": "等待中" },
+    "processing": { "title": "正在处理申请", "description": "Agent 正在审核申请及其文档。", "tag": "处理中" },
+    "retrying": { "title": "暂时中断", "description": "工作流正在自动重试 Agent 请求。", "tag": "重试中" },
+    "unknown": { "title": "申请状态", "description": "请查看下方可用的申请与处理信息。", "tag": "未知" }
+  },
+  "actions": { "retry": "重新处理", "retrying": "正在启动重试…" },
+  "notifications": { "retryUnavailable": "当前无法重试", "retryFallback": "无法重新处理此申请。" },
+  "failure": {
+    "label": "实际问题",
+    "categories": {
+      "provider_quota": { "title": "watsonx.ai 配额或服务关联有问题", "description": "文档已成功上传，但文档处理 Agent 调用模型时遭到拒绝。", "clarification": "数据尚未进入验证；这不是贷款被拒，也不是文档内容错误。" },
+      "provider_authorization": { "title": "外部 AI 服务拒绝访问", "description": "Agent 已启动，但当前服务凭证或权限无法完成模型请求。" },
+      "provider_rate_limit": { "title": "外部 AI 服务暂时繁忙", "description": "模型服务目前限制请求频率，本次处理尚未完成。" },
+      "provider_unavailable": { "title": "外部 AI 服务暂时不可用", "description": "Agent 已启动，但模型服务未成功响应。" },
+      "timeout": { "title": "Agent 等待响应超时", "description": "处理已开始，但未在允许时间内获得完整响应。" },
+      "unknown": { "title": "Agent 处理未完成", "description": "系统已保留技术记录，但目前无法安全判断更明确的原因。" }
+    },
+    "fields": { "stage": "中断阶段", "service": "外部服务", "code": "问题代码", "httpStatus": "HTTP 状态", "traceId": "Trace ID" },
+    "stages": { "document_processing_agent": "文档处理 Agent", "document_validation_agent": "文档验证 Agent", "final_decision_agent": "最终决定 Agent", "agent_workflow": "Agent 工作流" },
+    "services": { "watsonx_ai": "watsonx.ai", "agent_workflow": "Agent 工作流" },
+    "actionHeading": "建议处理方式",
+    "actions": { "check_service_configuration": "请管理员确认 watsonx.ai Runtime／WML instance 关联、项目权限及可用配额。", "retry_later": "请稍后再试；如果持续发生，请将问题代码与 Trace ID 提供给管理员。", "review_technical_details": "请展开下方技术详细信息，并将问题代码与 Trace ID 提供给管理员。" },
+    "retryAfterFix": "服务设置或配额修复前，重新处理仍会失败。",
+    "documentation": "查看 IBM API 文档",
+    "copyTrace": "复制 Trace ID",
+    "copy": "复制"
+  },
+  "validation": {
+    "heading": "验证结果",
+    "fieldLabels": {
+      "document_authenticity": "文档真实性",
+      "cross_validation": "跨文档验证",
+      "age_verification": "年龄验证",
+      "overall_validation_summary": "整体摘要",
+      "applicant_age": "申请人年龄",
+      "dob_consistency": "出生日期一致性",
+      "status": "状态",
+      "details": "详细信息",
+      "error": "错误"
+    }
+  },
+  "processing": {
+    "heading": "Agent 处理流程",
+    "description": "三个 Agent 会审核文档并生成最终结果。",
+    "loading": "正在加载处理记录",
+    "errorTitle": "无法获取处理记录",
+    "fetchError": "无法获取处理详细信息。",
+    "emptyHeading": "当前没有处理记录",
+    "emptyDescription": "开始处理后，Agent 时间线会显示在这里。"
+  },
+  "agents": {
+    "documentProcessing": { "name": "文档处理", "description": "分类每份文档并提取申请字段。" },
+    "documentValidation": { "name": "文档验证", "description": "检查真实性、完整性、有效期与文档风险。" },
+    "finalDecision": { "name": "最终决定", "description": "交叉核对申请并返回验证结果。" }
+  },
+  "stepStates": { "notStarted": "尚未开始", "failed": "失败", "retrying": "重试中", "complete": "已完成", "processing": "处理中", "stopped": "已停止" },
+  "runs": { "label": "第 {{number}} 次运行", "latest": "最新" },
+  "technical": { "heading": "技术详细信息", "eventCount_one": "{{count}} 个事件", "eventCount_other": "{{count}} 个事件", "showRaw": "查看原始事件", "hideRaw": "隐藏原始事件" },
+  "eventTypes": { "invoke_agent": "调用 Agent", "tool_call": "工具调用", "tool_response": "工具响应", "retry": "重试", "final_continuation": "最终决定续传", "demo_final_fallback": "POC 最终备用", "agent_response": "Agent 响应" },
+  "events": { "agentStarted": "Agent 已启动", "toolCalled": "已调用工具", "toolReturned": "工具已返回数据", "retryRequested": "Agent 请求重试", "retryAttempt": "Agent 请求重试 · 第 {{attempt}} 次", "finalRequestedAgain": "已再次请求最终决定响应", "fallbackCompleted": "POC 备用已完成决定", "agentError": "Agent 报告错误", "agentResponse": "Agent 已返回响应", "streamUpdate": "Agent 流更新" },
+  "json": { "controls": "JSON 显示控件", "expand": "展开所有 JSON", "collapse": "收起嵌套 JSON", "copy": "复制 JSON", "treeLabel": "结构化 JSON 数据" }
+}

@@ -7,9 +7,12 @@ import {
   Tile
 } from '@carbon/react';
 import { Calculator } from '@carbon/react/icons';
+import { useTranslation } from 'react-i18next';
+import { formatUsd } from '../../i18n/format';
 import './LoanCalculator.css';
 
 const LoanCalculator = () => {
+  const { t, i18n } = useTranslation('calculator');
   const [loanAmount, setLoanAmount] = useState(100000);
   const [interestRate, setInterestRate] = useState(5);
   const [loanTerm, setLoanTerm] = useState(30);
@@ -27,7 +30,7 @@ const LoanCalculator = () => {
     
     // Basic Validation
     if (!loanAmount || !interestRate || !loanTerm || loanAmount <= 0 || interestRate <= 0 || loanTerm <= 0) {
-      setError('Please fill in all fields with positive values.');
+      setError('errors.positiveValues');
       setResults({ monthlyPayment: null, totalInterest: null, totalPayment: null });
       return;
     }
@@ -61,86 +64,86 @@ const LoanCalculator = () => {
   return (
     <div className="calculator-container">
       <div className="calculator-header">
-        <h1>Loan Calculator</h1>
-        <p>Estimate your monthly loan payments.</p>
+        <h1>{t('page.heading')}</h1>
+        <p>{t('page.subtitle')}</p>
       </div>
       <div className="calculator-layout">
         <Form onSubmit={handleCalculate} className="calculator-form">
           <NumberInput
             id="loanAmount"
-            label="Loan Amount ($)"
+            label={t('fields.amount')}
             value={loanAmount}
             onChange={(e, { value }) => setLoanAmount(value)}
             min={1}
             step={1}
-            invalidText="Invalid amount"
+            invalidText={t('fields.invalidAmount')}
           />
           <NumberInput
             id="interestRate"
-            label="Annual Interest Rate (%)"
+            label={t('fields.rate')}
             value={interestRate}
             onChange={(e, { value }) => setInterestRate(value)}
             min={0.1}
             step={0.1}
-            invalidText="Invalid rate"
+            invalidText={t('fields.invalidRate')}
           />
           <NumberInput
             id="loanTerm"
-            label="Loan Term (Years)"
+            label={t('fields.term')}
             value={loanTerm}
             onChange={(e, { value }) => setLoanTerm(value)}
             min={1}
             step={1}
-            invalidText="Invalid term"
+            invalidText={t('fields.invalidTerm')}
           />
 
           {error && (
             <InlineNotification
               kind="error"
-              title="Calculation Error"
-              subtitle={error}
+              title={t('errors.title')}
+              subtitle={t(error)}
               hideCloseButton
             />
           )}
 
           <Button type="submit" renderIcon={Calculator}>
-            Calculate
+            {t('actions.calculate')}
           </Button>
         </Form>
         
         <Tile className="results-card">
-          <h2>Your Estimated Results</h2>
+          <h2>{t('results.heading')}</h2>
           {results.monthlyPayment !== null ? (
             <div className="results-content">
               <div className="result-item">
-                <p className="result-label">Monthly Payment</p>
+                <p className="result-label">{t('results.monthly')}</p>
                 <p className="monthly-payment-value">
-                  ${parseFloat(results.monthlyPayment).toLocaleString('en-US')}
+                  {formatUsd(parseFloat(results.monthlyPayment), i18n.resolvedLanguage)}
                 </p>
               </div>
               <hr />
               <div className="result-item">
-                <p className="result-label">Total Principal Paid</p>
+                <p className="result-label">{t('results.principal')}</p>
                 <p className="result-value">
-                  ${parseFloat(loanAmount).toLocaleString('en-US')}
+                  {formatUsd(parseFloat(loanAmount), i18n.resolvedLanguage)}
                 </p>
               </div>
               <div className="result-item">
-                <p className="result-label">Total Interest Paid</p>
+                <p className="result-label">{t('results.interest')}</p>
                 <p className="result-value">
-                  ${parseFloat(results.totalInterest).toLocaleString('en-US')}
+                  {formatUsd(parseFloat(results.totalInterest), i18n.resolvedLanguage)}
                 </p>
               </div>
               <div className="result-item total-payment-item">
-                <p className="result-label">Total of All Payments</p>
+                <p className="result-label">{t('results.total')}</p>
                 <p className="result-value">
-                  ${parseFloat(results.totalPayment).toLocaleString('en-US')}
+                  {formatUsd(parseFloat(results.totalPayment), i18n.resolvedLanguage)}
                 </p>
               </div>
             </div>
           ) : (
             <p className="no-results-text">
-              Enter your loan details and click "Calculate" to see your results.
+              {t('results.empty')}
             </p>
           )}
         </Tile>

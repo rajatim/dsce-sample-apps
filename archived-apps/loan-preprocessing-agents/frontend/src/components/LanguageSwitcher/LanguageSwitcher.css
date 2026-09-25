@@ -1,0 +1,31 @@
+.loan-language-switcher {
+  align-items: center;
+  color: #f4f4f4;
+  display: flex;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding-inline: 0.75rem;
+}
+
+.loan-language-switcher label {
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.loan-language-switcher select {
+  appearance: none;
+  background: #262626;
+  border: 1px solid #8d8d8d;
+  border-radius: 0;
+  color: #f4f4f4;
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+  min-width: 9.5rem;
+  padding: 0.625rem 2rem 0.625rem 0.75rem;
+}
+
+.loan-language-switcher select:focus-visible {
+  outline: 2px solid #78a9ff;
+  outline-offset: -2px;
+}

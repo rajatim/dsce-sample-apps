@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchSystemStatus } from '../services/systemStatus';
 import { SystemStatusContext } from './useSystemStatus';
 
 const defaultWallClock = () => Date.now();
 const defaultMonotonicClock = () => performance.now();
 
-const timingFor = (snapshot, currentMonotonic) => {
+const timingFor = (snapshot, currentMonotonic, t) => {
   const status = snapshot?.status;
   if (!status?.checked_at) return { checkedAtLabel: '', isStale: false };
 
@@ -29,15 +30,15 @@ const timingFor = (snapshot, currentMonotonic) => {
     || ageMilliseconds >= staleAfter;
 
   if (isStale) {
-    return { checkedAtLabel: 'Status data is out of date', isStale: true };
+    return { checkedAtLabel: t('timing.stale'), isStale: true };
   }
   const ageSeconds = Math.max(0, ageMilliseconds / 1000);
   if (ageSeconds < 60) {
-    return { checkedAtLabel: 'Checked just now', isStale: false };
+    return { checkedAtLabel: t('timing.justNow'), isStale: false };
   }
   const minutes = Math.floor(ageSeconds / 60);
   return {
-    checkedAtLabel: `Checked ${minutes} minute${minutes === 1 ? '' : 's'} ago`,
+    checkedAtLabel: t('timing.minutesAgo', { count: minutes }),
     isStale: false,
   };
 };
@@ -47,10 +48,11 @@ export const SystemStatusProvider = ({
   wallClock = defaultWallClock,
   monotonicClock = defaultMonotonicClock,
 }) => {
+  const { t } = useTranslation('status');
   const [snapshot, setSnapshot] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [errorKey, setErrorKey] = useState('');
   const [currentMonotonic, setCurrentMonotonic] = useState(() => monotonicClock());
   const requestRef = useRef(null);
   const mountedRef = useRef(true);
@@ -69,13 +71,13 @@ export const SystemStatusProvider = ({
             receivedMonotonic,
           }));
           setCurrentMonotonic(receivedMonotonic);
-          setError('');
+          setErrorKey('');
         }
         return nextStatus;
       })
       .catch((loadError) => {
         if (mountedRef.current && requestRef.current?.promise === promise && loadError?.name !== 'AbortError') {
-          setError('Demo status is currently unavailable.');
+          setErrorKey('errors.unavailable');
         }
         throw loadError;
       })
@@ -104,9 +106,10 @@ export const SystemStatusProvider = ({
   const refresh = useCallback(() => load(true), [load]);
   const status = snapshot?.status || null;
   const { checkedAtLabel, isStale } = useMemo(
-    () => timingFor(snapshot, currentMonotonic),
-    [currentMonotonic, snapshot],
+    () => timingFor(snapshot, currentMonotonic, t),
+    [currentMonotonic, snapshot, t],
   );
+  const error = errorKey ? t(errorKey) : '';
   const value = useMemo(() => ({
     status,
     isLoading,

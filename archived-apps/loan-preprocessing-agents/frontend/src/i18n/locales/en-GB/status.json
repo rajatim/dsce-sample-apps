@@ -1,0 +1,34 @@
+{
+  "page": { "heading": "Demo status", "description": "See which parts of the loan demo are available before you begin." },
+  "actions": { "refresh": "Refresh", "retry": "Retry" },
+  "statuses": { "ready": "Ready", "limited": "Limited", "unavailable": "Unavailable", "checking": "Checking", "unknown": "Status unavailable", "not_configured": "Not configured" },
+  "overall": { "ready": { "title": "Demo ready", "message": "You can submit and review loan applications." }, "limited": { "title": "Some demo features are limited", "message": "Check the details below before continuing." }, "unavailable": { "title": "The demo is currently unavailable", "message": "Please try again later." }, "fallback": { "title": "Status unavailable", "message": "We could not check the demo status. You may still try the demo." }, "checking": "Checking demo status", "refreshAnnouncement": "Demo status refreshed. {{title}}." },
+  "capabilities": {
+    "heading": "What you can do now", "listLabel": "Demo capabilities", "empty": "Capability details will appear when the latest status is available.",
+    "labels": { "submit_application": "Submit an application", "process_documents": "Process documents", "generate_decision": "Generate a loan decision", "view_applications": "View applications" },
+    "fallbacks": { "submit_application": "Submission status could not be checked.", "process_documents": "Document processing status could not be checked.", "generate_decision": "Loan decision status could not be checked.", "view_applications": "Application history status could not be checked." },
+    "messages": {
+      "submit_application": { "ready": "Online form and PDF upload are available.", "limited": "You can still submit an application, but it may take longer than usual.", "unavailable": "Application submission is unavailable. Please try again later.", "not_configured": "Application submission is not configured for this demo." },
+      "process_documents": { "ready": "Uploaded documents can be extracted and validated.", "limited": "You can continue, but document processing may take longer than usual.", "unavailable": "Document processing is unavailable. Please try again later.", "not_configured": "Document processing is not configured for this demo." },
+      "generate_decision": { "ready": "Agent processing is available. Results may take 2–4 minutes.", "limited": "You can continue, but a loan decision may take longer than usual.", "unavailable": "Loan decisions are unavailable. Please try again later.", "not_configured": "Loan decisions are not configured for this demo." },
+      "view_applications": { "ready": "Application history and processing details are available.", "limited": "You can still view applications, but history may take longer to load.", "unavailable": "Application history is unavailable. Please try again later.", "not_configured": "Application history is not configured for this demo." }
+    },
+    "problemMessages": {
+      "provider_quota": {
+        "process_documents": "Document processing cannot complete right now; an administrator must check the watsonx.ai quota or service association.",
+        "generate_decision": "Document processing has not completed, so a loan decision cannot be generated right now."
+      }
+    }
+  },
+  "refreshing": "Checking latest status", "stale": "Refresh before relying on these results.",
+  "technical": { "ariaLabel": "Technical status", "title": "Technical details", "listLabel": "Technical dependencies", "empty": "Technical status is unavailable until the next successful check.", "openllmetryNote": "Does not affect demo availability." },
+  "dependencies": { "loan_api": "Loan API", "postgresql": "PostgreSQL", "cos": "IBM Cloud Object Storage", "watsonx_ai": "watsonx.ai", "wxo": "watsonx Orchestrate", "document_processing_agent": "Document Processing Agent", "document_validation_agent": "Document Validation Agent", "final_decision_agent": "Final Decision Agent", "openllmetry": "OpenLLMetry" },
+  "dependencyMessages": { "service": { "ready": "{{label}} is reachable.", "limited": "{{label}} is available with limitations.", "unavailable": "{{label}} is unavailable.", "not_configured": "{{label}} is not configured.", "checking": "Checking {{label}}.", "unknown": "No verified status is available for {{label}}." }, "agent": { "ready": "Agent is registered.", "limited": "Agent availability is limited.", "unavailable": "Agent status is unavailable.", "not_configured": "Agent is not configured.", "checking": "Checking Agent status.", "unknown": "Agent status is not verified." }, "openllmetry": { "ready": "OpenLLMetry is initialized.", "limited": "OpenLLMetry is enabled but not initialized.", "unavailable": "OpenLLMetry is unavailable.", "not_configured": "OpenLLMetry is not configured.", "checking": "Checking OpenLLMetry.", "unknown": "OpenLLMetry status is not verified." } },
+  "problems": {
+    "provider_quota": { "dependencyMessage": "The most recent model request failed because of a quota or service association issue." },
+    "fields": { "code": "Problem code", "httpStatus": "HTTP status", "traceId": "Trace ID" }
+  },
+  "evidence": { "live_check": "Live check", "configured": "Configured", "recent_execution": "Recent execution", "not_verified": "Not verified", "unknown": "Not verified" },
+  "timing": { "checkedAt": "Checked at {{time}}", "lastFailed": "Last failed run {{time}}", "lastSuccessful": "Last successful run {{time}}", "noRecentRun": "No recent run", "noRecentCheck": "No recent check", "stale": "Status data is out of date", "justNow": "Checked just now", "minutesAgo_one": "Checked {{count}} minute ago", "minutesAgo_other": "Checked {{count}} minutes ago" },
+  "errors": { "unavailable": "Demo status is currently unavailable." }
+}

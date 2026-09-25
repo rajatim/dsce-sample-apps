@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from './useAuth';
+import i18n from '../i18n/config';
 
 const AuthState = () => {
   const { token } = useAuth();
@@ -10,7 +11,8 @@ const AuthState = () => {
 };
 
 describe('AuthProvider demo access', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US');
     const storage = new Map();
     vi.stubGlobal('localStorage', {
       getItem: (key) => storage.get(key) ?? null,
@@ -63,5 +65,17 @@ describe('AuthProvider demo access', () => {
     expect(await screen.findByText('Demo service unavailable')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
     expect(screen.queryByRole('textbox', { name: /username/i })).not.toBeInTheDocument();
+  });
+
+  it('localizes frontend access chrome while preserving a backend error body', async () => {
+    await i18n.changeLanguage('zh-TW');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: 'Backend unavailable' }),
+    }));
+    render(<AuthProvider><AuthState /></AuthProvider>);
+    expect(await screen.findByRole('heading', { name: 'Demo 服務無法使用' })).toBeVisible();
+    expect(screen.getByText('Backend unavailable')).toBeVisible();
+    expect(screen.getByRole('button', { name: '再試一次' })).toBeVisible();
   });
 });

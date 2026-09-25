@@ -1,0 +1,44 @@
+{
+  "page": { "heading": "Demo 狀態", "description": "開始前先查看貸款 Demo 的各項功能是否可用。" },
+  "actions": { "refresh": "重新整理", "retry": "重試" },
+  "statuses": { "ready": "就緒", "limited": "部分受限", "unavailable": "無法使用", "checking": "檢查中", "unknown": "無法取得狀態", "not_configured": "尚未設定" },
+  "overall": {
+    "ready": { "title": "Demo 已就緒", "message": "您可以送出及查看貸款申請。" },
+    "limited": { "title": "部分 Demo 功能受限", "message": "繼續前請先查看下方詳細資料。" },
+    "unavailable": { "title": "Demo 目前無法使用", "message": "請稍後再試。" },
+    "fallback": { "title": "無法取得狀態", "message": "目前無法檢查 Demo 狀態，您仍可嘗試使用 Demo。" },
+    "checking": "正在檢查 Demo 狀態", "refreshAnnouncement": "Demo 狀態已重新整理。{{title}}。"
+  },
+  "capabilities": {
+    "heading": "目前可使用的功能", "listLabel": "Demo 功能", "empty": "取得最新狀態後，功能詳細資料會顯示在這裡。",
+    "labels": { "submit_application": "送出申請", "process_documents": "處理文件", "generate_decision": "產生貸款決定", "view_applications": "查看申請" },
+    "fallbacks": { "submit_application": "無法檢查送出申請狀態。", "process_documents": "無法檢查文件處理狀態。", "generate_decision": "無法檢查貸款決定狀態。", "view_applications": "無法檢查申請紀錄狀態。" },
+    "messages": {
+      "submit_application": { "ready": "線上表單與 PDF 上傳皆可使用。", "limited": "您仍可送出申請，但處理時間可能較久。", "unavailable": "目前無法送出申請，請稍後再試。", "not_configured": "此 Demo 尚未設定送出申請功能。" },
+      "process_documents": { "ready": "可擷取並驗證上傳的文件。", "limited": "您可以繼續，但文件處理時間可能較久。", "unavailable": "目前無法處理文件，請稍後再試。", "not_configured": "此 Demo 尚未設定文件處理功能。" },
+      "generate_decision": { "ready": "Agent 處理功能可用，結果可能需要 2–4 分鐘。", "limited": "您可以繼續，但貸款決定可能需要較長時間。", "unavailable": "目前無法產生貸款決定，請稍後再試。", "not_configured": "此 Demo 尚未設定貸款決定功能。" },
+      "view_applications": { "ready": "可查看申請紀錄與處理詳細資料。", "limited": "您仍可查看申請，但紀錄載入時間可能較久。", "unavailable": "目前無法取得申請紀錄，請稍後再試。", "not_configured": "此 Demo 尚未設定申請紀錄功能。" }
+    },
+    "problemMessages": {
+      "provider_quota": {
+        "process_documents": "目前無法完成文件處理；watsonx.ai 額度或服務關聯需要管理員處理。",
+        "generate_decision": "文件處理尚未完成，因此目前無法產生貸款決定。"
+      }
+    }
+  },
+  "refreshing": "正在檢查最新狀態", "stale": "請重新整理後再依據這些結果判斷。",
+  "technical": { "ariaLabel": "技術狀態", "title": "技術詳細資料", "listLabel": "技術相依服務", "empty": "下次成功檢查前無法取得技術狀態。", "openllmetryNote": "不影響 Demo 是否可用。" },
+  "dependencies": { "loan_api": "貸款 API", "postgresql": "PostgreSQL", "cos": "IBM Cloud Object Storage", "watsonx_ai": "watsonx.ai", "wxo": "watsonx Orchestrate", "document_processing_agent": "文件處理 Agent", "document_validation_agent": "文件驗證 Agent", "final_decision_agent": "最終決定 Agent", "openllmetry": "OpenLLMetry" },
+  "dependencyMessages": {
+    "service": { "ready": "{{label}}可連線。", "limited": "{{label}}可用但部分受限。", "unavailable": "{{label}}無法使用。", "not_configured": "尚未設定{{label}}。", "checking": "正在檢查{{label}}。", "unknown": "沒有{{label}}的已驗證狀態。" },
+    "agent": { "ready": "Agent 已註冊。", "limited": "Agent 可用性受限。", "unavailable": "無法取得 Agent 狀態。", "not_configured": "尚未設定 Agent。", "checking": "正在檢查 Agent 狀態。", "unknown": "Agent 狀態尚未驗證。" },
+    "openllmetry": { "ready": "OpenLLMetry 已初始化。", "limited": "OpenLLMetry 已啟用但尚未初始化。", "unavailable": "OpenLLMetry 無法使用。", "not_configured": "尚未設定 OpenLLMetry。", "checking": "正在檢查 OpenLLMetry。", "unknown": "OpenLLMetry 狀態尚未驗證。" }
+  },
+  "problems": {
+    "provider_quota": { "dependencyMessage": "最近一次模型請求因額度或服務關聯問題失敗。" },
+    "fields": { "code": "問題代碼", "httpStatus": "HTTP 狀態", "traceId": "Trace ID" }
+  },
+  "evidence": { "live_check": "即時檢查", "configured": "已設定", "recent_execution": "近期執行", "not_verified": "尚未驗證", "unknown": "尚未驗證" },
+  "timing": { "checkedAt": "檢查時間：{{time}}", "lastFailed": "上次失敗：{{time}}", "lastSuccessful": "上次成功：{{time}}", "noRecentRun": "近期沒有執行紀錄", "noRecentCheck": "近期沒有檢查紀錄", "stale": "狀態資料已過期", "justNow": "剛剛檢查", "minutesAgo_one": "{{count}} 分鐘前檢查", "minutesAgo_other": "{{count}} 分鐘前檢查" },
+  "errors": { "unavailable": "Demo 狀態目前無法使用。" }
+}
