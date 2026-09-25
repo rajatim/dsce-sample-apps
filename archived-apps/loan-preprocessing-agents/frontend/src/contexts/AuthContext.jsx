@@ -17,9 +17,9 @@ export const AuthProvider = ({ children }) => {
     const [loginAttempt, setLoginAttempt] = useState(0);
     
     useEffect(() => {
-        // This effect syncs the token between localStorage and state.
+        // A removal invalidates this session; a new stored token is not yet trusted.
         const handleStorageChange = () => {
-            setToken(localStorage.getItem('token'));
+            if (!localStorage.getItem('token')) setToken(null);
         };
 
         window.addEventListener('storage', handleStorageChange);

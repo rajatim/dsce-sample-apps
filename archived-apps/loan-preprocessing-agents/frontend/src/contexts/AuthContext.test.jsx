@@ -1,5 +1,5 @@
 import React, { StrictMode, useEffect } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from './useAuth';
@@ -84,6 +84,23 @@ describe('AuthProvider demo access', () => {
       'http://127.0.0.1:8000/users/me',
     ]);
     expect(requests[1].options.headers.Authorization).toBe('Bearer fresh-demo-token');
+  });
+
+  it('does not trust a token written by another tab during demo preparation', async () => {
+    let releaseToken;
+    const tokenResponse = new Promise((resolve) => {
+      releaseToken = resolve;
+    });
+    vi.stubGlobal('fetch', vi.fn(() => tokenResponse));
+
+    render(<AuthProvider><AuthState /></AuthProvider>);
+    localStorage.setItem('token', 'stale-other-tab-token');
+    act(() => window.dispatchEvent(new Event('storage')));
+
+    expect(screen.getByText('Preparing the loan demo')).toBeVisible();
+    expect(screen.queryByText('Demo token: stale-other-tab-token')).not.toBeInTheDocument();
+    releaseToken({ ok: true, json: async () => ({ access_token: 'fresh-demo-token' }) });
+    expect(await screen.findByText('Demo token: fresh-demo-token')).toBeVisible();
   });
 
   it('shows a retryable service error instead of revealing the login screen', async () => {
