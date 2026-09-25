@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -351,31 +351,26 @@ class AgentWorkflowTest(unittest.TestCase):
 
         self.assertEqual(result.get("loan_application_status"), "passed")
         self.assertEqual(get_response.call_count, 5)
-        self.assertEqual(
+        for agent_call, expected_prefix, other_document, agent_id in zip(
             get_response.call_args_list[:4],
             [
-                call(
-                    "Classify and extract information from this document - id.png",
-                    agents.DOC_PROCESSOR_AGENT_ID,
-                    application_id=None,
-                ),
-                call(
-                    "Classify and extract information from this document - income.png",
-                    agents.DOC_PROCESSOR_AGENT_ID,
-                    application_id=None,
-                ),
-                call(
-                    "Validate this document - id.png",
-                    agents.DOCUMENT_VALIDATION_AGENT_ID,
-                    application_id=None,
-                ),
-                call(
-                    "Validate this document - income.png",
-                    agents.DOCUMENT_VALIDATION_AGENT_ID,
-                    application_id=None,
-                ),
+                "Classify and extract information from this document - id.png",
+                "Classify and extract information from this document - income.png",
+                "Validate this document - id.png",
+                "Validate this document - income.png",
             ],
-        )
+            ["income.png", "id.png", "income.png", "id.png"],
+            [
+                agents.DOC_PROCESSOR_AGENT_ID,
+                agents.DOC_PROCESSOR_AGENT_ID,
+                agents.DOCUMENT_VALIDATION_AGENT_ID,
+                agents.DOCUMENT_VALIDATION_AGENT_ID,
+            ],
+        ):
+            self.assertTrue(agent_call.args[0].startswith(expected_prefix))
+            self.assertNotIn(other_document, agent_call.args[0])
+            self.assertEqual(agent_call.args[1], agent_id)
+            self.assertEqual(agent_call.kwargs, {"application_id": None})
         final_prompt = get_response.call_args_list[-1].args[0]
         self.assertIn('"filename": "id.png"', final_prompt)
         self.assertIn('"filename": "income.png"', final_prompt)
@@ -663,6 +658,53 @@ class AgentWorkflowTest(unittest.TestCase):
                 ["/uploads/current-app/id.png"],
                 "application_data.json",
             )
+
+    @patch("utils.agents.get_response")
+    def test_document_filename_mismatch_retries_once_with_exact_path(self, get_response):
+        document = "/data/uploads/app-123/ssn.png"
+        get_response.side_effect = [
+            {
+                "response": json.dumps({"filename": "/data/uploads/app-123/ssn-card.png"}),
+                "thread_id": "first-processor",
+            },
+            {
+                "response": json.dumps({"filename": document, "document_type": "SSN"}),
+                "thread_id": "second-processor",
+            },
+        ]
+
+        result = agents._collect_document_results(
+            [document],
+            "Classify and extract information from this document - {document_name}",
+            "processor",
+            None,
+        )
+
+        self.assertEqual(result, [{"filename": document, "document_type": "SSN"}])
+        self.assertEqual(get_response.call_count, 2)
+        first_message = get_response.call_args_list[0].args[0]
+        retry_message = get_response.call_args_list[1].args[0]
+        self.assertIn(document, first_message)
+        self.assertIn("exact", first_message.lower())
+        self.assertIn("exact", retry_message.lower())
+        self.assertNotEqual(first_message, retry_message)
+
+    @patch("utils.agents.get_response")
+    def test_document_filename_mismatch_still_fails_after_one_retry(self, get_response):
+        get_response.return_value = {
+            "response": json.dumps({"filename": "/data/uploads/other-app/id.png"}),
+            "thread_id": "processor",
+        }
+
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            agents._collect_document_results(
+                ["/data/uploads/current-app/id.png"],
+                "Classify and extract information from this document - {document_name}",
+                "processor",
+                None,
+            )
+
+        self.assertEqual(get_response.call_count, 2)
 
     @patch("utils.agents.get_response")
     def test_pass_demo_recovers_when_final_agent_returns_an_incomplete_tool_call(

@@ -31,6 +31,7 @@ else:
     base_url = f"https://api.dl.watson-orchestrate.ibm.com/instances/{WXO_INSTANCE_ID}/v1/orchestrate"
 
 MAX_AGENT_ATTEMPTS = 3
+MAX_DOCUMENT_FILENAME_ATTEMPTS = 2
 MAX_FINAL_CONTINUATIONS = 2
 FINAL_CONTINUATION_MESSAGE = (
     "Continue the existing workflow from your previous response. "
@@ -495,40 +496,65 @@ def _collect_document_results(
 ) -> List[dict]:
     results = []
     for document_name in document_names:
-        response_options = {"application_id": application_id}
-        if on_retry:
-            response_options["on_retry"] = on_retry
-        agent_response = get_response(
-            message_template.format(document_name=document_name),
-            agent_id,
-            **response_options,
+        message = (
+            f"{message_template.format(document_name=document_name)}\n"
+            "Process only this one document. Use the exact full path above for "
+            "every tool call. Return exactly one JSON result with filename set "
+            "to that exact full path, copied from the tool response. Do not "
+            "rename, shorten, or invent the filename. If a tool reports a "
+            "different filename, return that tool filename unchanged so the "
+            "application can reject the mismatch."
         )
-        parsed_response = _parse_json_response(agent_response["response"])
-        if (
-            isinstance(parsed_response, dict)
-            and set(parsed_response) == {"results"}
-            and isinstance(parsed_response["results"], list)
-        ):
-            parsed_response = parsed_response["results"]
-        if isinstance(parsed_response, list):
-            if len(parsed_response) != 1:
+        for attempt in range(MAX_DOCUMENT_FILENAME_ATTEMPTS):
+            response_options = {"application_id": application_id}
+            if on_retry:
+                response_options["on_retry"] = on_retry
+            agent_response = get_response(message, agent_id, **response_options)
+            parsed_response = _parse_json_response(agent_response["response"])
+            if (
+                isinstance(parsed_response, dict)
+                and set(parsed_response) == {"results"}
+                and isinstance(parsed_response["results"], list)
+            ):
+                parsed_response = parsed_response["results"]
+            if isinstance(parsed_response, list):
+                if len(parsed_response) != 1:
+                    raise ValueError(
+                        f"Agent must return exactly one result for {document_name}"
+                    )
+                parsed_response = parsed_response[0]
+            if not isinstance(parsed_response, dict):
                 raise ValueError(
-                    f"Agent must return exactly one result for {document_name}"
+                    f"Agent result for {document_name} must be a JSON object"
                 )
-            parsed_response = parsed_response[0]
-        if not isinstance(parsed_response, dict):
-            raise ValueError(
-                f"Agent result for {document_name} must be a JSON object"
+            result_filename = parsed_response.get("filename")
+            expected_path = os.path.normpath(document_name.replace("\\", "/"))
+            result_path = os.path.normpath(
+                str(result_filename or "").replace("\\", "/")
             )
-        result_filename = parsed_response.get("filename")
-        expected_path = os.path.normpath(document_name.replace("\\", "/"))
-        result_path = os.path.normpath(str(result_filename or "").replace("\\", "/"))
-        if not result_filename or result_path != expected_path:
-            raise ValueError(
-                f"Agent result filename {result_filename} does not match "
-                f"requested document {document_name}"
-            )
-        results.append(parsed_response)
+            if not result_filename or result_path != expected_path:
+                if attempt + 1 < MAX_DOCUMENT_FILENAME_ATTEMPTS:
+                    message += (
+                        "\nYour previous answer had a different filename. "
+                        "Start a new run for only the requested document and "
+                        "copy its exact full path into the filename field."
+                    )
+                    if application_id:
+                        log_to_db(
+                            application_id,
+                            "retry",
+                            {
+                                "attempt": attempt + 2,
+                                "reason": "document_filename_mismatch",
+                            },
+                        )
+                    continue
+                raise ValueError(
+                    f"Agent result filename {result_filename} does not match "
+                    f"requested document {document_name}"
+                )
+            results.append(parsed_response)
+            break
     return results
 
 
