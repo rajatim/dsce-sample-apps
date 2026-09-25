@@ -11,7 +11,8 @@ const FRONTEND_ERROR_KEYS = {
 
 export const AuthProvider = ({ children }) => {
     const { t } = useTranslation('common');
-    const [token, setToken] = useState(localStorage.getItem('token'));
+    // A stored POC token may have expired; prepare a fresh session before children mount.
+    const [token, setToken] = useState(null);
     const [error, setError] = useState('');
     const [loginAttempt, setLoginAttempt] = useState(0);
     

@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+from services.processing_errors import ProcessingFailure
 
 
 def _serialize_date(value: date | str) -> str:
@@ -37,6 +38,10 @@ class ApplicationBase(BaseModel):
 
 class Application(ApplicationBase):
     model_config = ConfigDict(from_attributes=True)
+
+
+class ApplicationDetail(Application):
+    processing_failure: Optional[ProcessingFailure] = None
 
 
 class UserBase(BaseModel):

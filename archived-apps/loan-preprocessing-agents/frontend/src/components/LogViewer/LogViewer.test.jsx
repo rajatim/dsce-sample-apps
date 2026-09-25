@@ -244,6 +244,39 @@ describe('LogViewer application outcomes', () => {
     expect(document.body).not.toHaveTextContent('provider-secret');
   });
 
+  it('names a document filename mismatch without showing private filenames', async () => {
+    await i18n.changeLanguage('zh-TW');
+    authFetchMock.mockImplementation(async (url) => {
+      if (url.endsWith('/applications/app_123')) {
+        return {
+          ok: true,
+          json: async () => ({
+            ...application('Processing Failed', 'Application processing failed. Please retry.'),
+            processing_failure: {
+              category: 'document_mismatch',
+              service: 'agent_workflow',
+              stage: 'document_processing_agent',
+              provider_code: 'document_filename_mismatch',
+              http_status: null,
+              trace_id: null,
+              documentation_url: null,
+              retryable_now: false,
+              action: 'check_agent_document_mapping',
+            },
+          }),
+        };
+      }
+      return apiResponse([]);
+    });
+
+    render(<LogViewer application={application('Processing Failed')} />);
+
+    expect(await screen.findByRole('heading', { name: 'Agent 回傳的文件名稱不符' })).toBeVisible();
+    expect(screen.getByText('document_filename_mismatch')).toBeVisible();
+    expect(screen.getByText(/請管理員檢查 Agent 回傳的文件名稱與本次要求的文件是否一致/)).toBeVisible();
+    expect(document.body).not.toHaveTextContent('/private/');
+  });
+
   it('distinguishes an active retry from a terminal failure', async () => {
     authFetchMock.mockResolvedValue(apiResponse([
       log('invoke_agent', 'Invoking Document Validator Agent', '2026-09-01T06:07:40Z'),

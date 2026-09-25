@@ -20,6 +20,7 @@
       "provider_authorization": { "title": "The external AI service refused access", "description": "The Agent started, but the current service credentials or permissions could not complete the model request." },
       "provider_rate_limit": { "title": "The external AI service is temporarily busy", "description": "The model service is limiting request volume, so this run did not complete." },
       "provider_unavailable": { "title": "The external AI service is temporarily unavailable", "description": "The Agent started, but the model service did not return a successful response." },
+      "document_mismatch": { "title": "Agent returned a different document filename", "description": "The document processing Agent returned a filename different from the requested document, so processing stopped before a loan decision. This is not a rejected loan." },
       "timeout": { "title": "The Agent response timed out", "description": "Processing started, but a complete response did not arrive within the allowed time." },
       "unknown": { "title": "Agent processing did not complete", "description": "Technical records are available, but the system cannot safely identify a more specific cause." }
     },
@@ -27,8 +28,9 @@
     "stages": { "document_processing_agent": "Document Processing Agent", "document_validation_agent": "Document Validation Agent", "final_decision_agent": "Final Decision Agent", "agent_workflow": "Agent workflow" },
     "services": { "watsonx_ai": "watsonx.ai", "agent_workflow": "Agent workflow" },
     "actionHeading": "What to do next",
-    "actions": { "check_service_configuration": "Ask an administrator to check the watsonx.ai Runtime or WML instance association, project permissions, and available quota.", "retry_later": "Try again later. If the issue continues, give the problem code and Trace ID to an administrator.", "review_technical_details": "Open the technical details below and give the problem code and Trace ID to an administrator." },
+    "actions": { "check_service_configuration": "Ask an administrator to check the watsonx.ai Runtime or WML instance association, project permissions, and available quota.", "retry_later": "Try again later. If the issue continues, give the problem code and Trace ID to an administrator.", "review_technical_details": "Open the technical details below and give the problem code and Trace ID to an administrator.", "check_agent_document_mapping": "Ask an administrator to compare the filename returned by the Agent with the requested document and review the technical record below." },
     "retryAfterFix": "Retrying will fail again until the service configuration or quota is fixed.",
+    "retryAfterDocumentFix": "Retrying may fail again until the document mapping issue is understood.",
     "documentation": "View IBM API documentation",
     "copyTrace": "Copy Trace ID",
     "copy": "Copy"

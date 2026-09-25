@@ -469,7 +469,7 @@ async def get_user_applications(
     return apps
 
 
-@app.get("/applications/{app_id_str}", response_model=schemas.Application)
+@app.get("/applications/{app_id_str}", response_model=schemas.ApplicationDetail)
 async def get_application(
     app_id_str: str,
     current_user: schemas.User = Depends(security.get_current_user),

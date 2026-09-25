@@ -79,6 +79,12 @@ class Application(Base):
     processing_runs = relationship("ProcessingRun", back_populates="application")
     agent_events = relationship("AgentEvent", back_populates="application")
 
+    @property
+    def processing_failure(self):
+        from services.processing_errors import describe_application_failure
+
+        return describe_application_failure(self)
+
     @validates("submitted_date")
     def normalize_submitted_date(self, key, value):
         return _parse_iso_date(value)

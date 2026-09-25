@@ -1,13 +1,23 @@
-import React, { StrictMode } from 'react';
+import React, { StrictMode, useEffect } from 'react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from './useAuth';
+import { authFetch } from '../services/api';
+import { buildApiUrl } from '../services/apiBaseUrl';
 import i18n from '../i18n/config';
 
 const AuthState = () => {
   const { token } = useAuth();
   return <p>Demo token: {token}</p>;
+};
+
+const ProtectedUserLookup = () => {
+  const { token } = useAuth();
+  useEffect(() => {
+    authFetch(buildApiUrl('/users/me'));
+  }, []);
+  return <p>Protected token: {token}</p>;
 };
 
 describe('AuthProvider demo access', () => {
@@ -48,6 +58,32 @@ describe('AuthProvider demo access', () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe('http://127.0.0.1:8000/token');
     expect(options.body.toString()).toBe('username=tom_miller&password=Pass1234');
+  });
+
+  it('refreshes a stored token before a protected child requests user data', async () => {
+    localStorage.setItem('token', 'expired-demo-token');
+    let releaseToken;
+    const tokenResponse = new Promise((resolve) => {
+      releaseToken = resolve;
+    });
+    const requests = [];
+    vi.stubGlobal('fetch', vi.fn((url, options) => {
+      requests.push({ url, options });
+      if (url.endsWith('/token')) return tokenResponse;
+      return Promise.resolve({ ok: true, json: async () => ({ username: 'owner' }) });
+    }));
+
+    render(<AuthProvider><ProtectedUserLookup /></AuthProvider>);
+
+    expect(screen.getByText('Preparing the loan demo')).toBeVisible();
+    expect(requests.map(({ url }) => url)).toEqual(['http://127.0.0.1:8000/token']);
+    releaseToken({ ok: true, json: async () => ({ access_token: 'fresh-demo-token' }) });
+    expect(await screen.findByText('Protected token: fresh-demo-token')).toBeVisible();
+    expect(requests.map(({ url }) => url)).toEqual([
+      'http://127.0.0.1:8000/token',
+      'http://127.0.0.1:8000/users/me',
+    ]);
+    expect(requests[1].options.headers.Authorization).toBe('Bearer fresh-demo-token');
   });
 
   it('shows a retryable service error instead of revealing the login screen', async () => {

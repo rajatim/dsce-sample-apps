@@ -20,6 +20,7 @@
       "provider_authorization": { "title": "外部 AI 服务拒绝访问", "description": "Agent 已启动，但当前服务凭证或权限无法完成模型请求。" },
       "provider_rate_limit": { "title": "外部 AI 服务暂时繁忙", "description": "模型服务目前限制请求频率，本次处理尚未完成。" },
       "provider_unavailable": { "title": "外部 AI 服务暂时不可用", "description": "Agent 已启动，但模型服务未成功响应。" },
+      "document_mismatch": { "title": "Agent 返回的文件名称不匹配", "description": "文件处理 Agent 返回了与本次请求不同的文件名称，因此流程在做出贷款决定前停止；这不是贷款被拒。" },
       "timeout": { "title": "Agent 等待响应超时", "description": "处理已开始，但未在允许时间内获得完整响应。" },
       "unknown": { "title": "Agent 处理未完成", "description": "系统已保留技术记录，但目前无法安全判断更明确的原因。" }
     },
@@ -27,8 +28,9 @@
     "stages": { "document_processing_agent": "文档处理 Agent", "document_validation_agent": "文档验证 Agent", "final_decision_agent": "最终决定 Agent", "agent_workflow": "Agent 工作流" },
     "services": { "watsonx_ai": "watsonx.ai", "agent_workflow": "Agent 工作流" },
     "actionHeading": "建议处理方式",
-    "actions": { "check_service_configuration": "请管理员确认 watsonx.ai Runtime／WML instance 关联、项目权限及可用配额。", "retry_later": "请稍后再试；如果持续发生，请将问题代码与 Trace ID 提供给管理员。", "review_technical_details": "请展开下方技术详细信息，并将问题代码与 Trace ID 提供给管理员。" },
+    "actions": { "check_service_configuration": "请管理员确认 watsonx.ai Runtime／WML instance 关联、项目权限及可用配额。", "retry_later": "请稍后再试；如果持续发生，请将问题代码与 Trace ID 提供给管理员。", "review_technical_details": "请展开下方技术详细信息，并将问题代码与 Trace ID 提供给管理员。", "check_agent_document_mapping": "请管理员检查 Agent 返回的文件名称与本次请求的文件是否一致，并查看下方技术记录。" },
     "retryAfterFix": "服务设置或配额修复前，重新处理仍会失败。",
+    "retryAfterDocumentFix": "确认文件对应问题之前，重新处理可能再次失败。",
     "documentation": "查看 IBM API 文档",
     "copyTrace": "复制 Trace ID",
     "copy": "复制"

@@ -433,6 +433,7 @@ const ProcessingFailureSummary = ({ failure }) => {
     'provider_authorization',
     'provider_rate_limit',
     'provider_unavailable',
+    'document_mismatch',
     'timeout',
     'unknown',
   ]);
@@ -446,6 +447,7 @@ const ProcessingFailureSummary = ({ failure }) => {
     'check_service_configuration',
     'retry_later',
     'review_technical_details',
+    'check_agent_document_mapping',
   ]);
   const category = knownCategories.has(failure.category) ? failure.category : 'unknown';
   const service = failure.service === 'watsonx_ai' ? 'watsonx_ai' : 'agent_workflow';
@@ -476,7 +478,9 @@ const ProcessingFailureSummary = ({ failure }) => {
       <div className="processing-problem__action">
         <h4>{t('failure.actionHeading')}</h4>
         <p>{t(`failure.actions.${action}`)}</p>
-        {!failure.retryable_now && <p>{t('failure.retryAfterFix')}</p>}
+        {!failure.retryable_now && (
+          <p>{t(category === 'document_mismatch' ? 'failure.retryAfterDocumentFix' : 'failure.retryAfterFix')}</p>
+        )}
         {failure.documentation_url && (
           <a href={failure.documentation_url} target="_blank" rel="noreferrer">
             {t('failure.documentation')}
