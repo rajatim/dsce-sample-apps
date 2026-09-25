@@ -21,6 +21,8 @@ instructions: |
     * **document_type**
     * **extracted_data** (the JSON output)
 
+  4. Copy the entire JSON object returned by `extract_document_info` into `extracted_data` without changing field names or values. Preserve every returned field, including passport_number, driving_license_number, ssn, name, address, and dates. Do not summarize, omit identifiers, split names, replace values with guesses, or add fields that the tool did not return.
+
   ### Output Requirements
   * Copy `filename` exactly from the tool response. It must match the requested full filename, including its directory and extension.
   * If the tool reports a different filename, do not claim it processed the requested file.
