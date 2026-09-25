@@ -225,6 +225,7 @@ def _get_response_once(
         raise Exception(response.content.decode("utf-8"))
     answer = ""
     last_validator_tool_response = None
+    processor_tool_results = {}
     for line in response.iter_lines():
         if line:
             try:
@@ -235,6 +236,17 @@ def _get_response_once(
                     step_delta = event_data.get("data", {}).get("delta", {})
                     print(step_delta)
                     step_details = step_delta.get("step_details", [])
+                    if agent_id == DOC_PROCESSOR_AGENT_ID:
+                        for detail in step_details:
+                            tool_name = detail.get("name")
+                            if detail.get("type") != "tool_response" or tool_name not in {"classify_document", "extract_document_info"}:
+                                continue
+                            try:
+                                tool_result = json.loads(detail.get("content", ""))
+                            except (TypeError, json.JSONDecodeError):
+                                continue
+                            if isinstance(tool_result, dict) and tool_result.get("filename") and not tool_result.get("error"):
+                                processor_tool_results[tool_name] = tool_result
                     if agent_id == DOCUMENT_VALIDATION_AGENT_ID:
                         for step_detail in step_details:
                             if step_detail.get("type") != "tool_response":
@@ -268,6 +280,20 @@ def _get_response_once(
             answer = last_validator_tool_response
     if any(message in answer.lower() for message in RETRYABLE_AGENT_MESSAGES):
         raise TransientAgentError(answer)
+    classification = processor_tool_results.get("classify_document", {})
+    extraction = processor_tool_results.get("extract_document_info", {})
+    if (
+        classification.get("doc_type")
+        and extraction.get("filename")
+        and classification.get("filename") == extraction.get("filename")
+        and len(extraction) > 1
+    ):
+        # Keep the tool's data intact; the caller still checks the requested path.
+        answer = json.dumps({
+            "filename": extraction["filename"],
+            "document_type": classification["doc_type"],
+            "extracted_data": extraction,
+        })
     if application_id:
         log_to_db(application_id, "agent_response", answer)
     return {"response": answer, "thread_id": thread_id}

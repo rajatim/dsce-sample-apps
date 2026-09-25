@@ -13,6 +13,33 @@ from utils import agents
 
 
 class AgentWorkflowTest(unittest.TestCase):
+    @patch("utils.agents.requests.post")
+    @patch("utils.agents.get_bearer_token", return_value="test-token")
+    def test_processor_preserves_named_tool_fields_instead_of_llm_summary(self, token, post):
+        filename = "/data/uploads/test/bank.png"
+        extracted = {"filename": filename, "name": "TEST PERSON", "account_number": "000000000000", "address": "TEST ADDRESS"}
+        summary = {"filename": filename, "document_type": "Bank Statement", "extracted_data": {"account_number": "0000000000", "...": "..."}}
+        for other_file, agent_id in [(False, "processor"), (True, "processor"), (False, "other-agent")]:
+            with self.subTest(other_file=other_file, agent_id=agent_id):
+                classification = {"filename": "/other.png" if other_file else filename, "doc_type": "Bank Account Statement"}
+                response = Mock(status_code=200)
+                response.iter_lines.return_value = [json.dumps(event).encode() for event in [
+                    {"event": "run.step.delta", "data": {"delta": {"step_details": [
+                        {"type": "tool_response", "name": "classify_document", "tool_call_id": "classify-1", "content": json.dumps(classification)},
+                        {"type": "tool_response", "name": "extract_document_info", "tool_call_id": "extract-1", "content": json.dumps(extracted)},
+                    ]}}},
+                    {"event": "message.created", "data": {"thread_id": "thread-1", "message": {"content": [{"text": json.dumps(summary)}]}}},
+                ]]
+                post.return_value = response
+                with patch.object(agents, "DOC_PROCESSOR_AGENT_ID", "processor"):
+                    result = agents._get_response_once("Process " + filename, agent_id, thread_id="thread-1")
+                parsed = json.loads(result["response"])
+                if other_file or agent_id != "processor":
+                    self.assertEqual(parsed, summary)
+                else:
+                    self.assertEqual(parsed["extracted_data"], extracted)
+                    self.assertEqual(parsed["document_type"], "Bank Account Statement")
+
     def test_demo_age_is_calculated_from_the_canonical_birth_date(self):
         self.assertEqual(agents._age_on_date("1980-01-21", date(2026, 9, 1)), 46)
         self.assertEqual(agents._age_on_date("1980-01-21", date(2026, 1, 20)), 45)
