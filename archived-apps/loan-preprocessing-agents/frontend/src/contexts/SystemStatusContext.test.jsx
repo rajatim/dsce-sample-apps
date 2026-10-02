@@ -212,6 +212,25 @@ describe('targeted status state', () => {
     expect(screen.getByTestId('revision')).toHaveTextContent('3');
     expect(screen.getByTestId('cos-pending')).toHaveTextContent('false');
   });
+  it('does not reset freshness when an equal-revision cooldown response arrives late', async () => {
+    let resolveCos, resolveWxo;
+    let now = 0;
+    const clock = () => now;
+    const aged = (age) => ({ ...version(1), stale_after_seconds: 90,
+      dependencies: [{ id: 'cos', checked_at: payload.checked_at, age_seconds: age, stale: false }] });
+    fetchSystemStatusMock.mockResolvedValueOnce(aged(1))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveCos = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveWxo = resolve; }));
+    render(<SystemStatusProvider monotonicClock={clock}><TargetProbe /></SystemStatusProvider>);
+    await act(async () => {});
+    fireEvent.click(screen.getByText('COS'));
+    fireEvent.click(screen.getByText('WXO'));
+    now = 91_000;
+    await act(async () => resolveWxo(aged(92)));
+    expect(screen.getByTestId('cos-stale')).toHaveTextContent('true');
+    await act(async () => resolveCos(aged(1)));
+    expect(screen.getByTestId('cos-stale')).toHaveTextContent('true');
+  });
   it('retains results and shows a row error when the targeted request fails', async () => {
     fetchSystemStatusMock.mockResolvedValueOnce(version(1)).mockRejectedValueOnce(new Error('private failure'));
     render(<SystemStatusProvider><TargetProbe /></SystemStatusProvider>);

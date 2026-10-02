@@ -288,7 +288,12 @@ def check_watsonx(
             },
             timeout=HTTP_TIMEOUT,
         )
-        _json_response(response, "watsonx_ai", stage)
+        payload = _json_response(response, "watsonx_ai", stage)
+        resources = payload.get("resources") if isinstance(payload, Mapping) else None
+        if not isinstance(resources, list) or not all(isinstance(item, Mapping) for item in resources):
+            raise _HTTPStatusFailure(problem_for(
+                service="watsonx_ai", stage="response_parsing", code="invalid_response", http_status=200,
+            ))
     except Exception as error:
         _warning(_LABELS["watsonx_ai"], error)
         return _dependency(
@@ -333,7 +338,7 @@ def _registered_agent_ids(payload: Any) -> set[str]:
         collection = payload["agents"]
     else:
         raise _HTTPStatusFailure(problem_for(service="wxo", stage="response_parsing", code="invalid_response", http_status=200))
-    if not all(isinstance(item, Mapping) for item in collection):
+    if not all(isinstance(item, Mapping) and isinstance(item.get("id"), str) and item["id"].strip() for item in collection):
         raise _HTTPStatusFailure(problem_for(service="wxo", stage="response_parsing", code="invalid_response", http_status=200))
     return {
         agent_id

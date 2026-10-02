@@ -62,6 +62,28 @@ class StatusDiagnosticTests(unittest.TestCase):
         self.assertEqual(row.problem.stage, 'response_parsing')
         self.assertEqual(row.problem.code, 'invalid_response')
 
+    def test_malformed_success_collections_are_not_ready(self):
+        env = {'WATSONX_APIKEY': 'private', 'WATSONX_PROJECT_ID': 'private', 'WATSONX_URL': 'https://example.test'}
+        for payload in ({'unexpected': 'private'}, {'resources': {}}, [], {'resources': [123]}):
+            with self.subTest(payload=payload):
+                http = Mock()
+                http.post.return_value = response(200, {'access_token': 'private'})
+                http.get.return_value = response(200, payload)
+                row = check_watsonx(env, http, NOW)
+                self.assertIsNotNone(row.problem)
+                self.assertEqual((row.problem.http_status, row.problem.stage, row.problem.code),
+                                 (200, 'response_parsing', 'invalid_response'))
+        for payload in ({'agents': [{'id': 123}]}, [{}], [{'id': ''}]):
+            with self.subTest(payload=payload):
+                http = Mock()
+                http.post.return_value = response(200, {'token': 'private'})
+                http.get.return_value = response(200, payload)
+                rows = check_wxo(CPD, http, NOW)
+                self.assertIsNotNone(rows[0].problem)
+                self.assertEqual((rows[0].problem.http_status, rows[0].problem.stage, rows[0].problem.code),
+                                 (200, 'response_parsing', 'invalid_response'))
+                self.assertTrue(all(row.problem.blocked_by == 'wxo' for row in rows[1:]))
+
     def test_missing_agent_is_not_a_wxo_outage(self):
         http = Mock()
         http.post.return_value = response(200, {'token': 'private-token'})

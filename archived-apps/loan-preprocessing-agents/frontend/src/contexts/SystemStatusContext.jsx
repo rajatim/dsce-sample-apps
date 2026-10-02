@@ -45,7 +45,7 @@ export const SystemStatusProvider = ({ children, wallClock = wallClockDefault, m
         setSnapshot((previous) => {
           if (status.instance_id && retiredInstances.current.has(status.instance_id)) return previous;
           if (previous?.status.instance_id && status.instance_id === previous.status.instance_id
-              && status.revision < previous.status.revision) return previous;
+              && status.revision <= previous.status.revision) return previous;
           if (previous?.status.instance_id && status.instance_id && status.instance_id !== previous.status.instance_id) {
             retiredInstances.current.add(previous.status.instance_id);
           }
