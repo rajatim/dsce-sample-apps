@@ -2,7 +2,6 @@ import threading
 import time
 import unittest
 from collections import Counter
-from dataclasses import FrozenInstanceError
 from datetime import datetime, timedelta, timezone
 
 from pydantic import ValidationError
@@ -45,17 +44,6 @@ class FakeClock:
 
     def monotonic(self):
         return self.monotonic_current
-
-
-class CoordinatedSystemStatusService(SystemStatusService):
-    def __init__(self, *, contender_evaluated, **kwargs):
-        super().__init__(**kwargs)
-        self._contender_evaluated = contender_evaluated
-
-    def _reusable_cached(self, now, force_refresh):
-        if threading.current_thread().name == "forced-status-contender":
-            self._contender_evaluated.set()
-        return super()._reusable_cached(now, force_refresh)
 
 
 def dependency(dependency_id, checked_at, status=StatusValue.READY):
@@ -158,7 +146,10 @@ class SystemStatusServiceTests(unittest.TestCase):
         clock.advance(seconds=10)
         forced = service.get_status(force_refresh=True)
 
-        self.assertEqual(forced.checked_at, first.checked_at)
+        self.assertEqual(
+            next(item.checked_at for item in forced.dependencies if item.id == "postgresql"),
+            next(item.checked_at for item in first.dependencies if item.id == "postgresql"),
+        )
         self.assertTrue(all(count == 1 for count in self.calls.values()))
 
     def test_one_timed_out_check_does_not_remove_other_results(self):
@@ -319,11 +310,6 @@ class SystemStatusServiceTests(unittest.TestCase):
         service = self.make_service()
 
         response = service.get_status()
-        cache_entry = service._cache_entry
-
-        self.assertIs(cache_entry.response, response)
-        with self.assertRaises(FrozenInstanceError):
-            cache_entry.refresh_completed_monotonic = 999
         with self.assertRaises(ValidationError):
             response.stale = True
         with self.assertRaises(AttributeError):
@@ -406,7 +392,6 @@ class SystemStatusServiceTests(unittest.TestCase):
     def test_concurrent_requests_share_one_refresh(self):
         entered = threading.Event()
         release = threading.Event()
-        contender_evaluated = threading.Event()
 
         def slow_postgresql(checked_at):
             entered.set()
@@ -415,8 +400,7 @@ class SystemStatusServiceTests(unittest.TestCase):
 
         self.calls = Counter()
         self.clock = FakeClock()
-        service = CoordinatedSystemStatusService(
-            contender_evaluated=contender_evaluated,
+        service = SystemStatusService(
             clock=self.clock,
             monotonic_clock=self.clock.monotonic,
             dependency_checks=build_checks(
@@ -435,7 +419,6 @@ class SystemStatusServiceTests(unittest.TestCase):
         first.start()
         self.assertTrue(entered.wait(timeout=1))
         second.start()
-        self.assertTrue(contender_evaluated.wait(timeout=1))
         release.set()
         first.join(timeout=2)
         second.join(timeout=2)

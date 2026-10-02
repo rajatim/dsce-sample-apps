@@ -141,6 +141,25 @@ class StatusEndpointTests(unittest.TestCase):
         self.assertEqual(second.status_code, 503)
         self.assertEqual(calls, 1)
 
+    def test_targeted_endpoint_rejects_invalid_requests_without_checks(self):
+        from unittest.mock import Mock
+        service = Mock()
+        with patch.object(main, "system_status_service", service):
+            for query in ("?dependency=cos", "?refresh=true&dependency=invalid"):
+                result = self.client.get("/system-status" + query)
+                self.assertEqual(result.status_code, 422)
+        service.get_status.assert_not_called()
+
+    def test_targeted_endpoint_calls_selected_check_and_disables_http_cache(self):
+        service = SystemStatusService(dependency_checks={})
+        self.addCleanup(service.close)
+        with patch.object(main, "system_status_service", service):
+            result = self.client.get("/system-status?refresh=true&dependency=loan_api")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.headers["cache-control"], "no-store")
+        self.assertEqual(result.json()["refresh"]["affected_ids"], ["loan_api"])
+        self.assertEqual(len(result.json()["dependencies"]), 8)
+
     def test_system_status_is_public_and_matches_the_response_contract(self):
         safe_service = SystemStatusService(
             dependency_checks={

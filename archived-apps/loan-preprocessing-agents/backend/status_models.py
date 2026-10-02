@@ -89,5 +89,6 @@ class SystemStatusResponse(PublicStatusModel):
     stale: bool = False
     capabilities: tuple[CapabilityStatus, ...]
     dependencies: tuple[DependencyStatus, ...]
+    instance_id: str = ""
     revision: int = 0
     refresh: RefreshResult | None = None

@@ -15,7 +15,7 @@ from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, status, File, Form, UploadFile, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status, File, Form, UploadFile, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -40,7 +40,7 @@ from services.status_checks import (
     check_wxo,
 )
 from services.system_status import SystemStatusService
-from status_models import SystemStatusResponse
+from status_models import DependencyId, SystemStatusResponse
 from utils.agents import invoke_agents
 from utils.chat_image import ChatWithImage
 from utils.kv_extraction import extract_key_value_pairs
@@ -121,8 +121,13 @@ def readiness():
 
 
 @app.get("/system-status", response_model=SystemStatusResponse)
-def system_status(refresh: bool = False):
-    return system_status_service.get_status(force_refresh=refresh)
+def system_status(response: Response, refresh: bool = False, dependency: DependencyId | None = None):
+    response.headers["Cache-Control"] = "no-store"
+    if dependency is not None and not refresh:
+        raise HTTPException(status_code=422, detail="A dependency requires refresh=true.")
+    if dependency is None:
+        return system_status_service.get_status(force_refresh=refresh)
+    return system_status_service.get_status(force_refresh=refresh, dependency_id=dependency)
 
 
 # --- File Handling ---

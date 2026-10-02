@@ -103,7 +103,7 @@ def _capability_status(
 ) -> StatusValue:
     required = (dependencies.get(name) for name in CAPABILITY_DEPENDENCIES[capability_id])
     statuses = [
-        item.status if item is not None else StatusValue.UNKNOWN for item in required
+        (StatusValue.UNKNOWN if item.stale else item.status) if item is not None else StatusValue.UNKNOWN for item in required
     ]
     if StatusValue.UNAVAILABLE in statuses:
         return StatusValue.UNAVAILABLE
@@ -126,6 +126,7 @@ def build_capabilities(
         message = _CAPABILITY_MESSAGES[capability_id][status]
         capabilities.append(
             CapabilityStatus(
+                stale=any(dependencies.get(name) is None or dependencies[name].stale for name in CAPABILITY_DEPENDENCIES[capability_id]),
                 id=capability_id,
                 label=CAPABILITY_LABELS[capability_id],
                 status=status,

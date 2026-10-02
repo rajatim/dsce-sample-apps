@@ -467,5 +467,3 @@ def check_wxo(
             )
         )
     return results
-
-
