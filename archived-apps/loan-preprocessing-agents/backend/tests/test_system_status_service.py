@@ -22,7 +22,6 @@ DISPLAY_ORDER = [
     "document_processing_agent",
     "document_validation_agent",
     "final_decision_agent",
-    "openllmetry",
 ]
 
 
@@ -81,7 +80,6 @@ def ready_check_results(checked_at):
             dependency("document_validation_agent", checked_at),
             dependency("final_decision_agent", checked_at),
         ],
-        "openllmetry": dependency("openllmetry", checked_at),
     }
 
 
@@ -98,7 +96,7 @@ def build_checks(calls, overrides=None):
 
     return {
         name: make_check(name)
-        for name in ("postgresql", "cos", "watsonx_ai", "wxo", "openllmetry")
+        for name in ("postgresql", "cos", "watsonx_ai", "wxo")
     }
 
 
@@ -346,7 +344,7 @@ class SystemStatusServiceTests(unittest.TestCase):
             with active_lock:
                 active += 1
                 maximum_active = max(maximum_active, active)
-                if active == 6:
+                if active == 5:
                     all_started.set()
 
         def leave_job():
@@ -354,7 +352,7 @@ class SystemStatusServiceTests(unittest.TestCase):
             with active_lock:
                 active -= 1
                 finished += 1
-                if finished == 6:
+                if finished == 5:
                     all_finished.set()
 
         def blocking_result(name):
@@ -380,7 +378,7 @@ class SystemStatusServiceTests(unittest.TestCase):
 
         overrides = {
             name: blocking_result(name)
-            for name in ("postgresql", "cos", "watsonx_ai", "wxo", "openllmetry")
+            for name in ("postgresql", "cos", "watsonx_ai", "wxo")
         }
         service = self.make_service(
             overrides=overrides,
@@ -398,7 +396,7 @@ class SystemStatusServiceTests(unittest.TestCase):
 
             self.assertTrue(all(count == 1 for count in self.calls.values()))
             self.assertEqual(activity_calls, 1)
-            self.assertLessEqual(maximum_active, 6)
+            self.assertLessEqual(maximum_active, 5)
         finally:
             release.set()
             all_finished.wait(timeout=1)

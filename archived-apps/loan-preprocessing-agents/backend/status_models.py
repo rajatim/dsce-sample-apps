@@ -1,7 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StatusValue(StrEnum):
@@ -24,6 +26,33 @@ class PublicStatusModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+DependencyId = Literal[
+    "loan_api", "postgresql", "cos", "watsonx_ai", "wxo",
+    "document_processing_agent", "document_validation_agent", "final_decision_agent",
+]
+
+
+class StatusProblem(PublicStatusModel):
+    category: Literal["provider", "response", "configuration", "registration", "timeout", "connection", "unknown", "quota", "authorization"]
+    service: DependencyId
+    stage: Literal["authentication", "metadata", "registration", "response_parsing", "configuration", "database_query", "orchestration"]
+    code: Literal["http_error", "invalid_response", "missing_configuration", "agent_not_registered", "timeout", "connection_error", "tls_error", "check_failed"]
+    provider_code: str | None = Field(default=None, max_length=128)
+    http_status: int | None = Field(default=None, ge=100, le=599)
+    provider_message: str | None = Field(default=None, max_length=512)
+    trace_id: str | None = Field(default=None, max_length=128)
+    blocked_by: DependencyId | None = None
+    retryable_now: bool
+    action: Literal["retry_later", "review_configuration"]
+
+
+class RefreshResult(PublicStatusModel):
+    requested_dependency: DependencyId | None = None
+    affected_ids: tuple[DependencyId, ...] = ()
+    result: Literal["executed", "shared", "cooldown"]
+    retry_after_seconds: int = Field(default=0, ge=0)
+
+
 class DependencyStatus(PublicStatusModel):
     id: str
     label: str
@@ -33,9 +62,14 @@ class DependencyStatus(PublicStatusModel):
     checked_at: datetime | None = None
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
+    problem: StatusProblem | None = None
+    stale: bool = False
+    age_seconds: float = Field(default=0, ge=0)
+    check_kind: Literal["api_response", "database_query", "bucket_metadata", "deployment_metadata", "agent_registration"] | None = None
 
 
 class CapabilityStatus(PublicStatusModel):
+    stale: bool = False
     id: str
     label: str
     status: StatusValue
@@ -55,3 +89,5 @@ class SystemStatusResponse(PublicStatusModel):
     stale: bool = False
     capabilities: tuple[CapabilityStatus, ...]
     dependencies: tuple[DependencyStatus, ...]
+    revision: int = 0
+    refresh: RefreshResult | None = None

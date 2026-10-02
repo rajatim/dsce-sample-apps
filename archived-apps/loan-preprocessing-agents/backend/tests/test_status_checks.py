@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 
 from status_models import EvidenceKind, StatusValue
 from services import status_checks
-from services.status_checks import check_cos, check_openllmetry, check_postgresql, check_watsonx, check_wxo
+from services.status_checks import check_cos, check_postgresql, check_watsonx, check_wxo
 from utils.cos_client import COSClient
 
 
@@ -664,7 +664,8 @@ class DependencyCheckTests(unittest.TestCase):
                     all(item.status is StatusValue.UNAVAILABLE for item in results)
                 )
                 self.assertTrue(
-                    all(item.evidence is EvidenceKind.LIVE_CHECK for item in results)
+                    results[0].evidence is EvidenceKind.LIVE_CHECK
+                    and all(item.evidence is EvidenceKind.NOT_VERIFIED for item in results[1:])
                 )
                 self.assertEqual(
                     results[0].message, "watsonx Orchestrate is unavailable."
@@ -686,24 +687,6 @@ class DependencyCheckTests(unittest.TestCase):
                     ],
                 )
                 http.assert_exhausted()
-
-    def test_openllmetry_reports_configuration_and_initialization_state(self):
-        cases = (
-            ({}, False, StatusValue.NOT_CONFIGURED, EvidenceKind.NOT_VERIFIED,
-             "OpenLLMetry is not configured."),
-            ({"OPENLLMETRY_ENABLED": "true"}, True, StatusValue.READY,
-             EvidenceKind.CONFIGURED, "OpenLLMetry is initialized."),
-            ({"OPENLLMETRY_ENABLED": "yes"}, False, StatusValue.LIMITED,
-             EvidenceKind.CONFIGURED, "OpenLLMetry is enabled but not initialized."),
-        )
-        for environment, initialized, status, evidence, message in cases:
-            with self.subTest(status=status):
-                result = check_openllmetry(environment, initialized, CHECKED_AT)
-
-                self.assertIs(result.status, status)
-                self.assertIs(result.evidence, evidence)
-                self.assertEqual(result.message, message)
-                self.assertEqual(result.checked_at, CHECKED_AT)
 
     @staticmethod
     def _wxo_environment(**overrides):

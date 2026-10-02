@@ -35,7 +35,6 @@ from services.status_checks import (
     build_status_http_client,
     build_status_session_factory,
     check_cos,
-    check_openllmetry,
     check_postgresql,
     check_watsonx,
     check_wxo,
@@ -105,11 +104,6 @@ system_status_service = SystemStatusService(
         "wxo": lambda checked_at: check_wxo(
             os.environ,
             status_http_client,
-            checked_at,
-        ),
-        "openllmetry": lambda checked_at: check_openllmetry(
-            os.environ,
-            getattr(app.state, "openllmetry_initialized", False),
             checked_at,
         ),
     },

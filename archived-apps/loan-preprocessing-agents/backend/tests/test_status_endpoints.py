@@ -70,7 +70,6 @@ class StatusEndpointTests(unittest.TestCase):
             "check_cos",
             "check_watsonx",
             "check_wxo",
-            "check_openllmetry",
             "get_recent_agent_activity",
         )
         patches = [patch.object(main, name, forbidden) for name in names]
@@ -153,7 +152,6 @@ class StatusEndpointTests(unittest.TestCase):
                     "cos",
                     "watsonx_ai",
                     "wxo",
-                    "openllmetry",
                 )
             },
             activity_loader=lambda: {},
@@ -187,7 +185,6 @@ class StatusEndpointTests(unittest.TestCase):
                     "cos",
                     "watsonx_ai",
                     "wxo",
-                    "openllmetry",
                 )
             },
             activity_loader=lambda: {},
@@ -209,7 +206,6 @@ class StatusEndpointTests(unittest.TestCase):
                     "cos",
                     "watsonx_ai",
                     "wxo",
-                    "openllmetry",
                 )
             },
             activity_loader=lambda: {},

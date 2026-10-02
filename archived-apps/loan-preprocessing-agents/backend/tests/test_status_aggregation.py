@@ -41,7 +41,6 @@ def ready_dependencies() -> dict[str, DependencyStatus]:
         "document_processing_agent",
         "document_validation_agent",
         "final_decision_agent",
-        "openllmetry",
     }
     return {name: dependency(name, StatusValue.READY) for name in names}
 

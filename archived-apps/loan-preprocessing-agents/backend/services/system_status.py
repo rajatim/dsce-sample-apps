@@ -29,9 +29,8 @@ DISPLAY_ORDER = (
     "document_processing_agent",
     "document_validation_agent",
     "final_decision_agent",
-    "openllmetry",
 )
-_CHECK_ORDER = ("postgresql", "cos", "watsonx_ai", "wxo", "openllmetry")
+_CHECK_ORDER = ("postgresql", "cos", "watsonx_ai", "wxo")
 _JOB_ORDER = (*_CHECK_ORDER, "activity")
 _WXO_DEPENDENCIES = (
     "wxo",
@@ -49,7 +48,6 @@ _LABELS = {
     "document_processing_agent": "Document processing agent",
     "document_validation_agent": "Document validation agent",
     "final_decision_agent": "Final decision agent",
-    "openllmetry": "OpenLLMetry",
 }
 _UNKNOWN_MESSAGES = {
     dependency_id: f"{label} status check timed out."
