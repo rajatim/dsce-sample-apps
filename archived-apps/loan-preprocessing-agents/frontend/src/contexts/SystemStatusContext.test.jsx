@@ -174,3 +174,58 @@ describe('SystemStatusProvider', () => {
     expect(fetchSystemStatusMock).toHaveBeenCalledTimes(1);
   });
 });
+
+const TargetProbe = () => {
+  const c = useSystemStatus();
+  return <>
+    <span data-testid="revision">{c.status?.revision}</span>
+    <span data-testid="cos-pending">{String(c.isChecking('cos'))}</span>
+    <span data-testid="wxo-pending">{String(c.isChecking('wxo'))}</span>
+    <span data-testid="cos-error">{c.checkError('cos')}</span>
+    <span data-testid="cos-stale">{String(c.status?.dependencies[0] && c.isDependencyStale(c.status.dependencies[0]))}</span>
+    <button onClick={() => c.checkDependency('cos').catch(() => {})}>COS</button>
+    <button onClick={() => c.checkDependency('wxo').catch(() => {})}>WXO</button>
+    <button onClick={() => c.checkDependency('final_decision_agent').catch(() => {})}>Decision</button>
+  </>;
+};
+
+describe('targeted status state', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US');
+    fetchSystemStatusMock.mockReset();
+  });
+  const version = (revision) => ({ ...payload, instance_id: 'process-a', revision });
+  it('shares WXO button work and ignores an older response from another group', async () => {
+    let resolveCos, resolveWxo;
+    fetchSystemStatusMock.mockResolvedValueOnce(version(1))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveCos = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveWxo = resolve; }));
+    render(<SystemStatusProvider><TargetProbe /></SystemStatusProvider>);
+    await act(async () => {});
+    fireEvent.click(screen.getByText('COS'));
+    fireEvent.click(screen.getByText('WXO'));
+    fireEvent.click(screen.getByText('Decision'));
+    expect(fetchSystemStatusMock).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId('wxo-pending')).toHaveTextContent('true');
+    await act(async () => resolveWxo(version(3)));
+    await act(async () => resolveCos(version(2)));
+    expect(screen.getByTestId('revision')).toHaveTextContent('3');
+    expect(screen.getByTestId('cos-pending')).toHaveTextContent('false');
+  });
+  it('retains results and shows a row error when the targeted request fails', async () => {
+    fetchSystemStatusMock.mockResolvedValueOnce(version(1)).mockRejectedValueOnce(new Error('private failure'));
+    render(<SystemStatusProvider><TargetProbe /></SystemStatusProvider>);
+    await act(async () => {});
+    await act(async () => fireEvent.click(screen.getByText('COS')));
+    expect(screen.getByTestId('revision')).toHaveTextContent('1');
+    expect(screen.getByTestId('cos-error')).toHaveTextContent('Demo status is currently unavailable.');
+    expect(document.body).not.toHaveTextContent('private failure');
+  });
+  it('uses the row age even when a different group assembled a fresh snapshot', async () => {
+    fetchSystemStatusMock.mockResolvedValue({ ...version(1), checked_at: new Date().toISOString(), stale_after_seconds: 90,
+      dependencies: [{ id: 'cos', checked_at: new Date().toISOString(), stale: false, age_seconds: 95 }] });
+    render(<SystemStatusProvider><TargetProbe /></SystemStatusProvider>);
+    await act(async () => {});
+    expect(screen.getByTestId('cos-stale')).toHaveTextContent('true');
+  });
+});

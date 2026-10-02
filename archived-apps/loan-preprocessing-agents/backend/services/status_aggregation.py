@@ -126,6 +126,7 @@ def build_capabilities(
         message = _CAPABILITY_MESSAGES[capability_id][status]
         capabilities.append(
             CapabilityStatus(
+                age_seconds=max((dependencies[name].age_seconds for name in CAPABILITY_DEPENDENCIES[capability_id] if name in dependencies), default=0),
                 stale=any(dependencies.get(name) is None or dependencies[name].stale for name in CAPABILITY_DEPENDENCIES[capability_id]),
                 id=capability_id,
                 label=CAPABILITY_LABELS[capability_id],

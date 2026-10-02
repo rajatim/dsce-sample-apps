@@ -9,7 +9,7 @@ const FRONTEND_ERROR_KEYS = {
     'The demo service did not return an access token.': 'auth.errors.missingToken',
 };
 
-export const AuthProvider = ({ children }) => {
+export const AuthProvider = ({ children, publicStatus = false }) => {
     const { t } = useTranslation('common');
     // A stored POC token may have expired; prepare a fresh session before children mount.
     const [token, setToken] = useState(null);
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        if (token) return undefined;
+        if (token || publicStatus) return undefined;
 
         let active = true;
         setError('');
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
         return () => {
             active = false;
         };
-    }, [login, loginAttempt, token]);
+    }, [login, loginAttempt, token, publicStatus]);
     
     const authContextValue = {
         token,
@@ -62,7 +62,7 @@ export const AuthProvider = ({ children }) => {
         logout,
     };
 
-    if (!token) {
+    if (!token && !publicStatus) {
         return (
             <main className="demo-access-state">
                 <section className="demo-access-card" aria-live="polite">

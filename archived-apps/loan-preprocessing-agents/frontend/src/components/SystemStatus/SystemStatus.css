@@ -329,3 +329,15 @@
     gap: 0.25rem;
   }
 }
+
+.system-status-row-check {
+  margin-top: 1rem;
+  min-height: 44px;
+}
+
+.system-status-check-note {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #525252;
+}

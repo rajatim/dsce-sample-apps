@@ -79,6 +79,14 @@ describe('CapabilityNotice', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('keeps a fresh relevant failure visible when an unrelated dependency is outdated', () => {
+    setCapabilities([{ id: 'submit_application', status: 'unavailable', stale: false }], {
+      isStale: true, isCapabilityStale: () => false,
+    });
+    render(<CapabilityNotice capabilityIds={['submit_application']} />);
+    expect(screen.getByRole('status')).toBeVisible();
+  });
+
   it('localizes safe capability copy without rendering backend details', async () => {
     await i18n.changeLanguage('zh-TW');
     setCapabilities([{ id: 'process_documents', status: 'unavailable', message: 'Private backend detail' }]);

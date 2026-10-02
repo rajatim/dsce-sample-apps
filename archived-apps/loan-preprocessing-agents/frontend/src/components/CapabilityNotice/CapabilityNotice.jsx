@@ -7,13 +7,13 @@ const SEVERITY = { limited: 1, not_configured: 2, unavailable: 3 };
 
 const CapabilityNotice = ({ capabilityIds = [] }) => {
   const { t } = useTranslation('common');
-  const { status, isLoading, isStale } = useSystemStatus();
+  const { status, isLoading, isStale, isCapabilityStale } = useSystemStatus();
 
-  if (isLoading || !status || status.stale || isStale) return null;
+  if (isLoading || !status || (!isCapabilityStale && (status.stale || isStale))) return null;
 
   const requested = status.capabilities?.filter((capability) => capabilityIds.includes(capability.id)) || [];
   const actionable = requested
-    .filter((capability) => Object.hasOwn(SEVERITY, capability.status))
+    .filter((capability) => !(isCapabilityStale?.(capability) ?? capability.stale) && Object.hasOwn(SEVERITY, capability.status))
     .sort((left, right) => SEVERITY[right.status] - SEVERITY[left.status]);
   const capability = actionable[0];
   if (!capability) return null;

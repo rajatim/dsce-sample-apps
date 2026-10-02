@@ -261,4 +261,3 @@ class SystemStatusService:
                 )
             updated[dependency_id] = current.model_copy(update=changes)
         return updated
-

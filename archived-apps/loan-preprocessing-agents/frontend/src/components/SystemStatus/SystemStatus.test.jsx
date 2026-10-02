@@ -75,6 +75,32 @@ describe('SystemStatus', () => {
     vi.useRealTimers();
   });
 
+  it('provides eight targeted buttons and preserves outdated diagnostic evidence', async () => {
+    const checkDependency = vi.fn().mockResolvedValue({ refresh: { result: 'executed' } });
+    const dependencies = ['loan_api', 'postgresql', 'cos', 'watsonx_ai', 'wxo', 'document_processing_agent', 'document_validation_agent', 'final_decision_agent'].map((id) => ({ id, status: 'ready', evidence: 'live_check', checked_at: '2026-10-03T00:00:00Z' })).map((d) => d.id === 'wxo' ? {
+      ...d, status: 'unavailable', stale: true, problem: {
+        category: 'authorization', service: 'wxo', stage: 'authentication', code: 'http_error',
+        http_status: 401, provider_code: null, provider_message: 'Unauthorized', trace_id: null,
+        blocked_by: null, retryable_now: false, action: 'review_configuration',
+      },
+    } : d);
+    useSystemStatusMock.mockReturnValue(contextValue({
+      status: { ...readyContract, dependencies }, checkDependency,
+      isDependencyStale: (d) => Boolean(d.stale),
+    }));
+    render(<SystemStatus />);
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+    expect(screen.getAllByRole('button', { name: /^Check .+ now$/ })).toHaveLength(8);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Check PostgreSQL now' })));
+    expect(checkDependency).toHaveBeenCalledWith('postgresql');
+    const wxo = screen.getByRole('listitem', { name: /watsonx Orchestrate/ });
+    expect(within(wxo).getByText('401')).toBeVisible();
+    expect(within(wxo).getByText('Unauthorized')).toBeVisible();
+    expect(within(wxo).getByText('Authentication')).toBeVisible();
+    expect(within(wxo).getByText(/Outdated/)).toBeVisible();
+    expect(screen.queryByText('OpenLLMetry')).not.toBeInTheDocument();
+  });
+
   it('refreshes lightweight status after five minutes while visible and online', async () => {
     vi.useFakeTimers();
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
@@ -250,7 +276,7 @@ describe('SystemStatus', () => {
     expect(within(screen.getByRole('list', { name: 'Demo capabilities' })).getAllByRole('listitem'))
       .toHaveLength(4);
     expect(screen.getByText('Checking latest status', { selector: 'div' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Check all' })).toBeDisabled();
   });
 
   it('announces only a completed manual refresh, not the ticking relative label', () => {
@@ -261,7 +287,7 @@ describe('SystemStatus', () => {
     expect(screen.getByText('Checked just now')).not.toHaveAttribute('aria-live');
     expect(screen.queryByText(/Demo status refreshed/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check all' }));
     value.isRefreshing = true;
     rerender(<SystemStatus />);
     value.isRefreshing = false;
@@ -276,7 +302,7 @@ describe('SystemStatus', () => {
     );
 
     const firstAnnouncementNode = liveRegion.firstChild;
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check all' }));
     value.isRefreshing = true;
     rerender(<SystemStatus />);
     value.isRefreshing = false;
@@ -343,7 +369,7 @@ describe('SystemStatus', () => {
     expect(within(capabilities).getAllByText('Status unavailable')).toHaveLength(4);
   });
 
-  it('shows no Ready dependency presentation when stale technical details are expanded', () => {
+  it('retains last dependency result with an outdated warning', () => {
     useSystemStatusMock.mockReturnValue(contextValue({
       status: { ...readyStatus, stale: false },
       checkedAtLabel: 'Status data is out of date',
@@ -354,8 +380,8 @@ describe('SystemStatus', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
 
     const dependencies = screen.getByRole('list', { name: 'Technical dependencies' });
-    expect(within(dependencies).queryByText('Ready')).not.toBeInTheDocument();
-    expect(within(dependencies).getAllByText('Status unavailable')).toHaveLength(2);
+    expect(within(dependencies).getByText('Ready')).toBeVisible();
+    expect(within(dependencies).getByText(/Outdated/)).toBeVisible();
   });
 
   it('announces the effective unavailable status after a stale refresh completes', () => {
@@ -367,7 +393,7 @@ describe('SystemStatus', () => {
     useSystemStatusMock.mockImplementation(() => value);
     const { rerender } = render(<SystemStatus />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check all' }));
     value.isRefreshing = true;
     rerender(<SystemStatus />);
     value.isRefreshing = false;
@@ -421,7 +447,7 @@ describe('SystemStatus', () => {
     expect(within(processor).getByText(/^Last failed run /)).toBeVisible();
     expect(within(validator).getByText('No recent run')).toBeVisible();
     expect(within(decision).getByText(/^Last successful run /)).toBeVisible();
-    expect(within(validator).queryByText(/^Checked at /)).not.toBeInTheDocument();
+    expect(within(validator).getByText(/^Checked at /)).toBeVisible();
   });
 
   it('shows a recent watsonx quota problem as blocked work with support identifiers', async () => {
@@ -486,16 +512,6 @@ describe('SystemStatus', () => {
     expect(within(watsonx).getByText('403 Forbidden')).toBeVisible();
     expect(within(watsonx).getByText('trace-status-456')).toBeVisible();
     expect(within(watsonx).getByText(/最近一次模型請求因額度或服務關聯問題失敗/)).toBeVisible();
-  });
-
-  it('states that OpenLLMetry does not affect demo availability', () => {
-    render(<SystemStatus />);
-    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
-
-    const openLLMetryRow = screen.getByRole('listitem', { name: /OpenLLMetry/ });
-    expect(within(openLLMetryRow).getByText('Does not affect demo availability.')).toBeVisible();
-    expect(within(openLLMetryRow).getByText('Not configured')).toBeVisible();
-    expect(openLLMetryRow.querySelector('svg')).not.toBeNull();
   });
 
   it('localizes known status presentation without refreshing or exposing internal data', async () => {

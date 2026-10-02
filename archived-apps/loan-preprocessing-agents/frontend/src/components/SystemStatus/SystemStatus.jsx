@@ -20,7 +20,7 @@ import './SystemStatus.css';
 
 const CAPABILITIES = ['submit_application', 'process_documents', 'generate_decision', 'view_applications'];
 
-const DEPENDENCIES = ['loan_api', 'postgresql', 'cos', 'watsonx_ai', 'wxo', 'document_processing_agent', 'document_validation_agent', 'final_decision_agent', 'openllmetry'];
+const DEPENDENCIES = ['loan_api', 'postgresql', 'cos', 'watsonx_ai', 'wxo', 'document_processing_agent', 'document_validation_agent', 'final_decision_agent'];
 const AGENT_DEPENDENCY_IDS = new Set([
   'document_processing_agent',
   'document_validation_agent',
@@ -50,9 +50,10 @@ const StatusMark = ({ status, large = false }) => {
   );
 };
 
-const capabilityItems = (status, isStale, t) => CAPABILITIES.map((id) => {
+const capabilityItems = (status, isStale, t, isCapabilityStale) => CAPABILITIES.map((id) => {
   const capability = status?.capabilities.find((item) => item.id === id);
-  const itemStatus = isStale ? 'unknown' : capability?.status || 'unknown';
+  const outdated = capability && isCapabilityStale ? isCapabilityStale(capability) : isStale;
+  const itemStatus = outdated ? 'unknown' : capability?.status || 'unknown';
   const fallbackMessage = t(`capabilities.fallbacks.${id}`);
   const knownMessage = ['ready', 'limited', 'unavailable', 'not_configured'].includes(itemStatus);
   const quotaBlocked = capability?.problem?.provider_code === 'token_quota_reached';
@@ -60,24 +61,25 @@ const capabilityItems = (status, isStale, t) => CAPABILITIES.map((id) => {
     id,
     label: t(`capabilities.labels.${id}`),
     status: itemStatus,
-    message: !isStale && quotaBlocked
+    message: !outdated && quotaBlocked
       ? t(`capabilities.problemMessages.provider_quota.${id}`, { defaultValue: fallbackMessage })
-      : isStale
+      : outdated
       ? fallbackMessage
       : knownMessage
         ? t(`capabilities.messages.${id}.${itemStatus}`)
         : capability?.message || fallbackMessage,
-    problem: isStale ? null : capability?.problem,
+    problem: outdated ? null : capability?.problem,
   };
 });
 
-const dependencyItems = (status, isStale, t) => DEPENDENCIES.flatMap((id) => {
+const dependencyItems = (status, isStale, t, isDependencyStale) => DEPENDENCIES.flatMap((id) => {
   const dependency = status?.dependencies.find((item) => item.id === id);
   return dependency ? [{
     ...dependency,
     id,
     label: t(`dependencies.${id}`),
-    status: isStale ? 'unknown' : dependency.status,
+    status: dependency.status,
+    stale: isDependencyStale ? isDependencyStale(dependency) : isStale,
   }] : [];
 });
 
@@ -103,13 +105,15 @@ const dependencyTiming = (dependency, t, locale) => {
 };
 
 const dependencyMessage = (dependency, t) => {
+  if (dependency.problem?.blocked_by) return t('diagnostics.blocked', { service: t(`dependencies.${dependency.problem.blocked_by}`) });
+  if (dependency.problem?.code) return t(`diagnostics.codes.${dependency.problem.code}`);
   if (dependency.problem?.provider_code === 'token_quota_reached') {
     return t('problems.provider_quota.dependencyMessage');
   }
   if (!STATUS_PRESENTATION[dependency.status]) return dependency.message;
   const group = AGENT_DEPENDENCY_IDS.has(dependency.id)
     ? 'agent'
-    : dependency.id === 'openllmetry' ? 'openllmetry' : 'service';
+    : 'service';
   return t(`dependencyMessages.${group}.${dependency.status}`, { label: dependency.label });
 };
 
@@ -122,9 +126,14 @@ const DependencyProblem = ({ problem }) => {
   if (!problem) return null;
   return (
     <dl className="system-status-problem">
+      {problem.code && <>
+        <div><dt>{t('diagnostics.stage')}</dt><dd>{t(`diagnostics.stages.${problem.stage}`)}</dd></div>
+        <div><dt>{t('diagnostics.providerMessage')}</dt><dd>{problem.provider_message || t('diagnostics.messageUnavailable')}</dd></div>
+        <div><dt>{t('diagnostics.action')}</dt><dd>{t(`diagnostics.actions.${problem.action}`)}</dd></div>
+      </>}
       <div>
         <dt>{t('problems.fields.code')}</dt>
-        <dd><code>{problem.provider_code}</code></dd>
+        <dd><code>{problem.provider_code || problem.code || t('diagnostics.notSupplied')}</code></dd>
       </div>
       <div>
         <dt>{t('problems.fields.httpStatus')}</dt>
@@ -160,6 +169,13 @@ const SystemStatus = () => {
     refresh,
     checkedAtLabel,
     isStale,
+    checkDependency,
+    isDependencyStale,
+    isCapabilityStale,
+    isChecking = () => false,
+    checkError = () => '',
+    checkOutcome = () => null,
+    refreshOutcome,
   } = useSystemStatus();
   const [refreshAnnouncement, setRefreshAnnouncement] = useState({
     message: '',
@@ -221,8 +237,20 @@ const SystemStatus = () => {
     };
   }, [refreshIfDue]);
 
-  const capabilities = hasStatus ? capabilityItems(status, isStale, t) : [];
-  const dependencies = hasStatus ? dependencyItems(status, isStale, t) : [];
+  const capabilities = hasStatus ? capabilityItems(status, isStale, t, isCapabilityStale) : [];
+  const dependencies = hasStatus ? dependencyItems(status, isStale, t, isDependencyStale) : [];
+
+  const handleDependencyCheck = async (id) => {
+    try {
+      const result = await checkDependency(id);
+      const message = result?.refresh?.result === 'cooldown'
+        ? t('diagnostics.cooldown', { count: result.refresh.retry_after_seconds })
+        : t('diagnostics.completed', { service: t(`dependencies.${id}`) });
+      setRefreshAnnouncement((current) => ({ message, sequence: current.sequence + 1 }));
+    } catch {
+      // The provider keeps the prior result and exposes a safe error for this group.
+    }
+  };
 
   return (
     <div className="system-status-page">
@@ -284,6 +312,8 @@ const SystemStatus = () => {
         )}
       </section>
 
+      {refreshOutcome?.result === 'cooldown' && <p className="system-status-check-note">{t('diagnostics.cooldown', { count: refreshOutcome.retry_after_seconds })}</p>}
+      {error && <p role="alert" className="system-status-check-note">{t('diagnostics.requestFailed')}</p>}
       <section className="system-status-capabilities" aria-labelledby="capabilities-heading">
         <h2 id="capabilities-heading">{t('capabilities.heading')}</h2>
         {hasStatus ? (
@@ -318,21 +348,36 @@ const SystemStatus = () => {
                       key={dependency.id}
                       aria-label={`${dependency.label}, ${statusLabel}`}
                     >
-                      <div className="system-status-dependency__heading">
-                        <h3>{dependency.label}</h3>
-                        <StatusMark status={dependency.status} />
+                      <div>
+                        <div className="system-status-dependency__heading">
+                          <h3>{dependency.label}</h3>
+                          <StatusMark status={dependency.status} />
+                        </div>
+                        <Button kind="tertiary" size="sm" className="system-status-row-check"
+                          aria-label={t('diagnostics.checkNamed', { service: dependency.label })}
+                          disabled={isLoading || isChecking(dependency.id)}
+                          onClick={() => handleDependencyCheck(dependency.id)}>
+                          {isChecking(dependency.id) ? t('diagnostics.checking') : t('diagnostics.checkNow')}
+                        </Button>
                       </div>
                       <div className="system-status-dependency__details">
+                        {dependency.stale && <p className="system-status-stale-note">{t('diagnostics.outdated')}</p>}
                         <p>{dependencyMessage(dependency, t)}</p>
+                        <p className="system-status-check-note">{t(`diagnostics.kinds.${dependency.check_kind || (AGENT_DEPENDENCY_IDS.has(dependency.id) || dependency.id === 'wxo' ? 'agent_registration' : 'metadata')}`)}</p>
+                        {(AGENT_DEPENDENCY_IDS.has(dependency.id) || dependency.id === 'wxo') && <p className="system-status-check-note">{t('diagnostics.wxoGroup')}</p>}
+                        {checkError(dependency.id) && <p role="alert">{t('diagnostics.requestFailed')}</p>}
+                        {checkOutcome(dependency.id)?.result === 'cooldown' && <p role="status">{t('diagnostics.cooldown', { count: checkOutcome(dependency.id).retry_after_seconds })}</p>}
                         <DependencyProblem problem={dependency.problem} />
                         <p className="system-status-dependency__meta">
                           <span>{t(`evidence.${dependency.evidence}`, { defaultValue: t('evidence.unknown') })}</span>
-                          <span>{dependencyTiming(dependency, t, i18n.resolvedLanguage)}</span>
+                          <span>{dependency.checked_at ? t('timing.checkedAt', { time: formatDateTime(dependency.checked_at, i18n.resolvedLanguage) }) : t('timing.noRecentCheck')}</span>
                         </p>
-                        {dependency.id === 'openllmetry' && (
-                          <p className="system-status-dependency__note">
-                            {t('technical.openllmetryNote')}
-                          </p>
+                        {AGENT_DEPENDENCY_IDS.has(dependency.id) && (
+                          <div className="system-status-dependency__note">
+                            <p>{t('diagnostics.lastExecution')}</p>
+                            <p>{dependencyTiming(dependency, t, i18n.resolvedLanguage)}</p>
+                            <p className="system-status-check-note">{t('diagnostics.executionNote')}</p>
+                          </div>
                         )}
                       </div>
                     </li>

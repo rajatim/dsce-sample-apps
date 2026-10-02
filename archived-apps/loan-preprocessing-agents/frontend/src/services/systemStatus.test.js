@@ -61,6 +61,19 @@ describe('fetchSystemStatus', () => {
     await expect(fetchSystemStatus()).rejects.toThrow('Demo status is currently unavailable.');
   });
 
+  it('requests only the selected dependency on a manual check', async () => {
+    authFetchMock.mockResolvedValue(jsonResponse(validStatus));
+    await fetchSystemStatus({ refresh: true, dependency: 'cos' });
+    expect(authFetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8000/system-status?refresh=true&dependency=cos');
+  });
+
+  it('rejects malformed diagnostic fields', async () => {
+    authFetchMock.mockResolvedValue(jsonResponse({ ...validStatus, dependencies: [{
+      ...validStatus.dependencies[0], problem: { http_status: 'private-body' },
+    }] }));
+    await expect(fetchSystemStatus()).rejects.toThrow('Demo status is currently unavailable.');
+  });
+
   it('passes the caller signal through unchanged', async () => {
     const signal = new AbortController().signal;
     await fetchSystemStatus({ signal });

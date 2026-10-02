@@ -169,7 +169,7 @@ purposes:
   service. Use it for the OpenShift liveness probe.
 - `GET /readyz` is readiness for traffic. It executes only PostgreSQL
   `SELECT 1`; failure returns HTTP 503 with a fixed, sanitized body. Use it for
-  the OpenShift readiness probe. COS, watsonx.ai, WXO, and OpenLLMetry do not
+  the OpenShift readiness probe. COS, watsonx.ai, and WXO do not
   affect this endpoint. The probe waits at most three seconds for the status
   database check.
 - `GET /system-status` is a public, sanitized status document for the frontend
@@ -177,11 +177,35 @@ purposes:
   fields; it never returns credentials, provider endpoints or identifiers,
   applicant data, raw exceptions, or provider response bodies.
 
-The status service defaults to a 30-second cache, a 15-second cooldown for
-`?refresh=true`, a 90-second stale threshold, and a five-second total check
-budget. Concurrent callers share one refresh. A manual refresh is still
-subject to the cooldown and performs no model inference, WXO thread or run,
-Agent execution, or COS write.
+The status service uses a 30-second normal cache, a 15-second manual cooldown
+per group, a 90-second evidence age limit, and a five-second total wait budget.
+Manual checks never perform model inference, create WXO threads/runs, execute
+Agents, or write COS objects.
+
+`GET /system-status?refresh=true&dependency=cos` checks only COS. Valid IDs are
+`loan_api`, `postgresql`, `cos`, `watsonx_ai`, `wxo`,
+`document_processing_agent`, `document_validation_agent`, and
+`final_decision_agent`. The four WXO/Agent IDs share one authentication and
+registration check. Omitting `dependency` keeps the existing full refresh.
+Invalid IDs or a target without `refresh=true` return HTTP 422. Responses use
+`Cache-Control: no-store`; HTTP 200 means a status report was produced, not that
+all dependencies passed.
+
+Each dependency retains its own `checked_at`, `age_seconds`, `stale`, and
+`check_kind`. The aggregate `checked_at` does not refresh untouched rows.
+`instance_id` and `revision` order snapshots. `refresh` identifies the requested
+target, affected IDs, executed/shared/cooldown result, and retry delay. A
+cooldown keeps the original timestamps. The backend derives capability
+freshness and availability from required dependencies; the UI does not define
+those rules.
+
+A failed check returns a structured `problem`: service, failed stage, normalized
+code, actual HTTP status (when received), reviewed provider code/message, safe
+trace ID, shared blocker, and suggested action. Unknown free-form provider
+bodies are omitted explicitly. A transport failure has no invented HTTP status.
+A WXO authentication error blocks Agent registration checks; it does not prove
+that three Agent executions failed. Metadata success does not verify model
+quota or erase historical execution failure evidence.
 
 Status and readiness database reads use a separate, non-pooled connection path
 with a one-second connection timeout and a two-second PostgreSQL statement
@@ -189,7 +213,7 @@ timeout; the business database pool and workflow semantics are unchanged. COS
 status metadata uses a status-only client with a one-second connection timeout,
 a two-second read timeout, and no retries. The other status HTTP reads use
 two-second connection and three-second read timeouts with transport retries
-disabled. A fixed six-worker status pool retains at most one in-flight job per
+disabled. A fixed five-worker status pool retains at most one in-flight job per
 dependency (including the bounded local-history read), so a timed-out job is
 not submitted again while it is still running.
 
@@ -203,25 +227,24 @@ history derived from a bounded scan of the newest 500 Agent events. That
 history has no freshness window or guarantee. Local timestamp history does not
 establish or guarantee current Agent availability, and its timestamps never
 promote a failed live check to `ready`. The status check never runs an Agent.
-OpenLLMetry is informational and never changes a user capability or the overall
-availability result.
+OpenLLMetry is not a status dependency. Retained tracing code is only for the separately controlled tracing rollback.
 
 Verify only allowlisted public fields. Do not print the full dependency
 document during a shared-screen check:
 
 ```bash
-curl --fail --silent http://127.0.0.1:8000/healthz \
+curl --fail --silent "http://127.0.0.1:${SERVER_PORT}/healthz" \
   | jq -e '.status == "ok"'
-curl --fail --silent http://127.0.0.1:8000/readyz \
+curl --fail --silent "http://127.0.0.1:${SERVER_PORT}/readyz" \
   | jq -e '.status == "ready"'
-curl --fail --silent http://127.0.0.1:8000/system-status \
+curl --fail --silent "http://127.0.0.1:${SERVER_PORT}/system-status" \
   | jq -e '
       (.overall.status | IN("ready", "limited", "unavailable", "unknown")) and
       (.capabilities | length == 4) and
       ([.dependencies[].id] | index("postgresql") != null)
     '
 curl --fail --silent \
-  'http://127.0.0.1:8000/system-status?refresh=true' \
+  "http://127.0.0.1:${SERVER_PORT}/system-status?refresh=true" \
   | jq '{overall_status: .overall.status, checked_at, stale}'
 ```
 
@@ -231,7 +254,7 @@ permission-restricted temporary file and inspect only named fields:
 ```bash
 umask 077
 LOAN_STATUS_FILE="$(mktemp -t loan-system-status.XXXXXX)"
-curl --fail --silent http://127.0.0.1:8000/system-status \
+curl --fail --silent "http://127.0.0.1:${SERVER_PORT}/system-status" \
   --output "$LOAN_STATUS_FILE"
 jq '{overall_status: .overall.status, capability_count: (.capabilities | length), stale}' \
   "$LOAN_STATUS_FILE"

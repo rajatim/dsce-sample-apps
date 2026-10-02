@@ -1,17 +1,81 @@
 {
-  "page": { "heading": "Demo 状态", "description": "开始前先查看贷款 Demo 的各项功能是否可用。" },
-  "actions": { "refresh": "刷新", "retry": "重试" },
-  "statuses": { "ready": "就绪", "limited": "部分受限", "unavailable": "不可用", "checking": "检查中", "unknown": "无法获取状态", "not_configured": "尚未配置" },
-  "overall": { "ready": { "title": "Demo 已就绪", "message": "您可以提交和查看贷款申请。" }, "limited": { "title": "部分 Demo 功能受限", "message": "继续前请先查看下方详细信息。" }, "unavailable": { "title": "Demo 当前不可用", "message": "请稍后重试。" }, "fallback": { "title": "无法获取状态", "message": "当前无法检查 Demo 状态，您仍可尝试使用 Demo。" }, "checking": "正在检查 Demo 状态", "refreshAnnouncement": "Demo 状态已刷新。{{title}}。" },
+  "page": {
+    "heading": "Demo 状态",
+    "description": "开始前先查看贷款 Demo 的各项功能是否可用。"
+  },
+  "actions": {
+    "refresh": "检查全部",
+    "retry": "重试"
+  },
+  "statuses": {
+    "ready": "就绪",
+    "limited": "部分受限",
+    "unavailable": "不可用",
+    "checking": "检查中",
+    "unknown": "无法获取状态",
+    "not_configured": "尚未配置"
+  },
+  "overall": {
+    "ready": {
+      "title": "Demo 已就绪",
+      "message": "您可以提交和查看贷款申请。"
+    },
+    "limited": {
+      "title": "部分 Demo 功能受限",
+      "message": "继续前请先查看下方详细信息。"
+    },
+    "unavailable": {
+      "title": "Demo 当前不可用",
+      "message": "请稍后重试。"
+    },
+    "fallback": {
+      "title": "无法获取状态",
+      "message": "当前无法检查 Demo 状态，您仍可尝试使用 Demo。"
+    },
+    "checking": "正在检查 Demo 状态",
+    "refreshAnnouncement": "Demo 状态已刷新。{{title}}。"
+  },
   "capabilities": {
-    "heading": "当前可用功能", "listLabel": "Demo 功能", "empty": "获取最新状态后，功能详细信息会显示在这里。",
-    "labels": { "submit_application": "提交申请", "process_documents": "处理文档", "generate_decision": "生成贷款决定", "view_applications": "查看申请" },
-    "fallbacks": { "submit_application": "无法检查提交申请状态。", "process_documents": "无法检查文档处理状态。", "generate_decision": "无法检查贷款决定状态。", "view_applications": "无法检查申请记录状态。" },
+    "heading": "当前可用功能",
+    "listLabel": "Demo 功能",
+    "empty": "获取最新状态后，功能详细信息会显示在这里。",
+    "labels": {
+      "submit_application": "提交申请",
+      "process_documents": "处理文档",
+      "generate_decision": "生成贷款决定",
+      "view_applications": "查看申请"
+    },
+    "fallbacks": {
+      "submit_application": "无法检查提交申请状态。",
+      "process_documents": "无法检查文档处理状态。",
+      "generate_decision": "无法检查贷款决定状态。",
+      "view_applications": "无法检查申请记录状态。"
+    },
     "messages": {
-      "submit_application": { "ready": "在线表单与 PDF 上传均可使用。", "limited": "您仍可提交申请，但处理时间可能较长。", "unavailable": "当前无法提交申请，请稍后重试。", "not_configured": "此 Demo 尚未配置提交申请功能。" },
-      "process_documents": { "ready": "可提取并验证上传的文档。", "limited": "您可以继续，但文档处理时间可能较长。", "unavailable": "当前无法处理文档，请稍后重试。", "not_configured": "此 Demo 尚未配置文档处理功能。" },
-      "generate_decision": { "ready": "Agent 处理功能可用，结果可能需要 2–4 分钟。", "limited": "您可以继续，但贷款决定可能需要更长时间。", "unavailable": "当前无法生成贷款决定，请稍后重试。", "not_configured": "此 Demo 尚未配置贷款决定功能。" },
-      "view_applications": { "ready": "可查看申请记录与处理详细信息。", "limited": "您仍可查看申请，但记录加载时间可能较长。", "unavailable": "当前无法获取申请记录，请稍后重试。", "not_configured": "此 Demo 尚未配置申请记录功能。" }
+      "submit_application": {
+        "ready": "在线表单与 PDF 上传均可使用。",
+        "limited": "您仍可提交申请，但处理时间可能较长。",
+        "unavailable": "当前无法提交申请，请稍后重试。",
+        "not_configured": "此 Demo 尚未配置提交申请功能。"
+      },
+      "process_documents": {
+        "ready": "可提取并验证上传的文档。",
+        "limited": "您可以继续，但文档处理时间可能较长。",
+        "unavailable": "当前无法处理文档，请稍后重试。",
+        "not_configured": "此 Demo 尚未配置文档处理功能。"
+      },
+      "generate_decision": {
+        "ready": "Agent 处理功能可用，结果可能需要 2–4 分钟。",
+        "limited": "您可以继续，但贷款决定可能需要更长时间。",
+        "unavailable": "当前无法生成贷款决定，请稍后重试。",
+        "not_configured": "此 Demo 尚未配置贷款决定功能。"
+      },
+      "view_applications": {
+        "ready": "可查看申请记录与处理详细信息。",
+        "limited": "您仍可查看申请，但记录加载时间可能较长。",
+        "unavailable": "当前无法获取申请记录，请稍后重试。",
+        "not_configured": "此 Demo 尚未配置申请记录功能。"
+      }
     },
     "problemMessages": {
       "provider_quota": {
@@ -20,15 +84,120 @@
       }
     }
   },
-  "refreshing": "正在检查最新状态", "stale": "请刷新后再依据这些结果判断。",
-  "technical": { "ariaLabel": "技术状态", "title": "技术详细信息", "listLabel": "技术依赖服务", "empty": "下次成功检查前无法获取技术状态。", "openllmetryNote": "不影响 Demo 是否可用。" },
-  "dependencies": { "loan_api": "贷款 API", "postgresql": "PostgreSQL", "cos": "IBM Cloud Object Storage", "watsonx_ai": "watsonx.ai", "wxo": "watsonx Orchestrate", "document_processing_agent": "文档处理 Agent", "document_validation_agent": "文档验证 Agent", "final_decision_agent": "最终决定 Agent", "openllmetry": "OpenLLMetry" },
-  "dependencyMessages": { "service": { "ready": "{{label}}可连接。", "limited": "{{label}}可用但部分受限。", "unavailable": "{{label}}不可用。", "not_configured": "尚未配置{{label}}。", "checking": "正在检查{{label}}。", "unknown": "没有{{label}}的已验证状态。" }, "agent": { "ready": "Agent 已注册。", "limited": "Agent 可用性受限。", "unavailable": "无法获取 Agent 状态。", "not_configured": "尚未配置 Agent。", "checking": "正在检查 Agent 状态。", "unknown": "Agent 状态尚未验证。" }, "openllmetry": { "ready": "OpenLLMetry 已初始化。", "limited": "OpenLLMetry 已启用但尚未初始化。", "unavailable": "OpenLLMetry 不可用。", "not_configured": "尚未配置 OpenLLMetry。", "checking": "正在检查 OpenLLMetry。", "unknown": "OpenLLMetry 状态尚未验证。" } },
-  "problems": {
-    "provider_quota": { "dependencyMessage": "最近一次模型请求因配额或服务关联问题失败。" },
-    "fields": { "code": "问题代码", "httpStatus": "HTTP 状态", "traceId": "Trace ID" }
+  "refreshing": "正在检查最新状态",
+  "stale": "请刷新后再依据这些结果判断。",
+  "technical": {
+    "ariaLabel": "技术状态",
+    "title": "技术详细信息",
+    "listLabel": "技术依赖服务",
+    "empty": "下次成功检查前无法获取技术状态。"
   },
-  "evidence": { "live_check": "实时检查", "configured": "已配置", "recent_execution": "近期运行", "not_verified": "尚未验证", "unknown": "尚未验证" },
-  "timing": { "checkedAt": "检查时间：{{time}}", "lastFailed": "上次失败：{{time}}", "lastSuccessful": "上次成功：{{time}}", "noRecentRun": "近期没有运行记录", "noRecentCheck": "近期没有检查记录", "stale": "状态数据已过期", "justNow": "刚刚检查", "minutesAgo_one": "{{count}} 分钟前检查", "minutesAgo_other": "{{count}} 分钟前检查" },
-  "errors": { "unavailable": "Demo 状态当前不可用。" }
+  "dependencies": {
+    "loan_api": "贷款 API",
+    "postgresql": "PostgreSQL",
+    "cos": "IBM Cloud Object Storage",
+    "watsonx_ai": "watsonx.ai",
+    "wxo": "watsonx Orchestrate",
+    "document_processing_agent": "文档处理 Agent",
+    "document_validation_agent": "文档验证 Agent",
+    "final_decision_agent": "最终决定 Agent"
+  },
+  "dependencyMessages": {
+    "service": {
+      "ready": "{{label}}可连接。",
+      "limited": "{{label}}可用但部分受限。",
+      "unavailable": "{{label}}不可用。",
+      "not_configured": "尚未配置{{label}}。",
+      "checking": "正在检查{{label}}。",
+      "unknown": "没有{{label}}的已验证状态。"
+    },
+    "agent": {
+      "ready": "Agent 已注册。",
+      "limited": "Agent 可用性受限。",
+      "unavailable": "无法获取 Agent 状态。",
+      "not_configured": "尚未配置 Agent。",
+      "checking": "正在检查 Agent 状态。",
+      "unknown": "Agent 状态尚未验证。"
+    }
+  },
+  "problems": {
+    "provider_quota": {
+      "dependencyMessage": "最近一次模型请求因配额或服务关联问题失败。"
+    },
+    "fields": {
+      "code": "问题代码",
+      "httpStatus": "HTTP 状态",
+      "traceId": "Trace ID"
+    }
+  },
+  "evidence": {
+    "live_check": "实时检查",
+    "configured": "已配置",
+    "recent_execution": "近期运行",
+    "not_verified": "尚未验证",
+    "unknown": "尚未验证"
+  },
+  "timing": {
+    "checkedAt": "检查时间：{{time}}",
+    "lastFailed": "上次失败：{{time}}",
+    "lastSuccessful": "上次成功：{{time}}",
+    "noRecentRun": "近期没有运行记录",
+    "noRecentCheck": "近期没有检查记录",
+    "stale": "状态数据已过期",
+    "justNow": "刚刚检查",
+    "minutesAgo_one": "{{count}} 分钟前检查",
+    "minutesAgo_other": "{{count}} 分钟前检查"
+  },
+  "errors": {
+    "unavailable": "Demo 状态当前不可用。"
+  },
+  "diagnostics": {
+    "checkNow": "立即检查",
+    "checkNamed": "立即检查{{service}}",
+    "checking": "检查中…",
+    "outdated": "数据已过期 — 显示上次结果，使用前请重新检查。",
+    "completed": "{{service}}检查完成，请查看下方结果。",
+    "cooldown": "沿用上次结果。从本次操作起 {{count}} 秒后可重新检查。",
+    "requestFailed": "本次检查未能完成。请确认网络连接或贷款 API；目前显示上次结果。",
+    "wxoGroup": "此操作会一并检查 WXO 与三个 Agent 的注册状态。",
+    "lastExecution": "上次执行",
+    "executionNote": "此为历史执行记录；本次检查不会执行 Agent。",
+    "blocked": "因{{service}}检查失败，无法确认 Agent 注册状态。",
+    "notSupplied": "未提供",
+    "stage": "失败阶段",
+    "providerMessage": "收到的消息",
+    "action": "建议操作",
+    "messageUnavailable": "没有可安全显示的服务消息。若有提供，下方状态码与错误代码为实际收到的信息。",
+    "stages": {
+      "authentication": "身份验证",
+      "metadata": "获取服务信息",
+      "registration": "Agent 注册",
+      "response_parsing": "解析响应",
+      "configuration": "连接设置",
+      "database_query": "数据库查询",
+      "orchestration": "检查时限或执行"
+    },
+    "codes": {
+      "http_error": "服务拒绝了请求，请查看下方收到的详细信息。",
+      "invalid_response": "服务响应格式不符，无法解析。",
+      "missing_configuration": "缺少必要连接设置，或设置不受支持。",
+      "agent_not_registered": "注册响应中找不到设置的 Agent。",
+      "timeout": "检查超过时间限制。",
+      "connection_error": "无法建立连接。",
+      "tls_error": "无法验证安全连接。",
+      "check_failed": "检查失败，服务未提供可公开显示的错误信息。"
+    },
+    "actions": {
+      "retry_later": "请稍后再试。",
+      "review_configuration": "请管理员检查访问权限、设置与报告的错误。"
+    },
+    "kinds": {
+      "api_response": "检查贷款 API 是否可连接。",
+      "database_query": "通过只读查询检查数据库连接。",
+      "bucket_metadata": "检查存储桶访问权限，不上传文件。",
+      "deployment_metadata": "仅检查身份验证与服务信息；不验证模型执行或额度。",
+      "agent_registration": "仅检查身份验证与注册状态；不执行 Agent 或模型。",
+      "metadata": "仅检查连接，不验证完整贷款流程。"
+    }
+  }
 }

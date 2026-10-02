@@ -35,6 +35,18 @@ describe('AuthProvider demo access', () => {
     vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:8000');
   });
 
+  it('opens public status without calling the login or database path', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Login unavailable'));
+    vi.stubGlobal('fetch', fetchMock);
+    const { rerender } = render(<AuthProvider publicStatus><p>Public status</p></AuthProvider>);
+    expect(screen.getByText('Public status')).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalled();
+    rerender(<AuthProvider publicStatus={false}><p>Protected application</p></AuthProvider>);
+    expect(screen.queryByText('Protected application')).not.toBeInTheDocument();
+    await act(async () => {});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('silently prepares one demo session without showing a login form', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

@@ -70,6 +70,7 @@ class DependencyStatus(PublicStatusModel):
 
 class CapabilityStatus(PublicStatusModel):
     stale: bool = False
+    age_seconds: float = Field(default=0, ge=0)
     id: str
     label: str
     status: StatusValue
