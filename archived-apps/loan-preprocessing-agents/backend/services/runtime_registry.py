@@ -1,5 +1,6 @@
 """Allowlisted runtime settings; URL trust boundaries remain bootstrap policy."""
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 from services.runtime_crypto import ConfigurationUnavailable
@@ -36,6 +37,8 @@ def validate_groups(application, groups, *, allowed_hosts, allow_local=False):
                 values[name] = value
         required = ['NEXTAUTH_SECRET','NEXTAUTH_URL','AUTH_PROVIDER','WIZARD_DATA_SOURCE'] if application == 'dsce' else ['JWT_SECRET_KEY','WXO_API_KEY','WXO_INSTANCE_ID','WXO_INSTANCE_CLOUD','DOC_PROCESSOR_AGENT_ID','DOCUMENT_VALIDATION_AGENT_ID','FINAL_DECISION_AGENT_ID','WATSONX_APIKEY','WATSONX_PROJECT_ID','WATSONX_URL','COS_ENDPOINT','COS_BUCKET_NAME','COS_API_KEY_ID','COS_INSTANCE_CRN']
         if application == 'dsce':
+            auth_url = urlsplit(values.get('NEXTAUTH_URL', ''))
+            if auth_url.path != '/dsce/api/auth' or auth_url.query: raise ValueError()
             provider = values.get('AUTH_PROVIDER')
             if provider == 'ivia': required += ['IVIA_CLIENT_ID','IVIA_CLIENT_SECRET','IVIA_ISSUER','IVIA_WELL_KNOWN','IVIA_TOKEN_ENDPOINT_AUTH_METHOD']
             if provider == 'ibmid': required += ['IBMID_CLIENT_ID','IBMID_CLIENT_SECRET','IBMID_WELL_KNOWN']
@@ -45,6 +48,16 @@ def validate_groups(application, groups, *, allowed_hosts, allow_local=False):
                 if values['EMAIL_HOST'] not in allowed_hosts or not 1 <= int(values.get('EMAIL_PORT','0')) <= 65535: raise ValueError()
                 if any('\r' in values.get(k,'') or '\n' in values.get(k,'') for k in ('EMAIL_FROM','EMAIL_TO','EMAIL_HOST')): raise ValueError()
         elif values.get('WXO_INSTANCE_CLOUD') == 'cpd': required += ['WXO_SERVICE_INSTANCE_URL','WXO_CPD_USERNAME']
+        if application == 'loan' and not values.get('WXO_SERVICE_INSTANCE_URL'):
+            region = values.get('WXO_INSTANCE_CLOUD_REGION', '')
+            instance = values.get('WXO_INSTANCE_ID', '')
+            if not re.fullmatch(r'[A-Za-z0-9_-]+', instance): raise ValueError()
+            if values.get('WXO_INSTANCE_CLOUD') == 'ibmcloud':
+                if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', region): raise ValueError()
+                root = f'https://api.{region}.watson-orchestrate.cloud.ibm.com/instances/{instance}'
+            else:
+                root = f'https://api.dl.watson-orchestrate.ibm.com/instances/{instance}'
+            if urlsplit(root).hostname not in allowed_hosts: raise ValueError()
         if any(not values.get(name, '').strip() for name in required): raise ValueError()
         signing_key = values.get('NEXTAUTH_SECRET' if application == 'dsce' else 'JWT_SECRET_KEY','')
         if len(signing_key) < 32: raise ValueError()
