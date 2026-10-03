@@ -1,4 +1,4 @@
-import os
+from services.runtime_settings import get_settings
 import io
 import time
 import json
@@ -41,12 +41,13 @@ class COSClient:
         Raises:
             ValueError: If any of cos_endpoint, cos_api_key_id, or cos_instance_crn is missing, raises an exception.
         """
+        settings = get_settings().values if any(value is None for value in (cos_endpoint, cos_api_key_id, cos_instance_crn)) else {}
         if cos_endpoint is None:
-            cos_endpoint = os.getenv("COS_ENDPOINT")
+            cos_endpoint = settings.get("COS_ENDPOINT")
         if cos_api_key_id is None:
-            cos_api_key_id = os.getenv("COS_API_KEY_ID")
+            cos_api_key_id = settings.get("COS_API_KEY_ID")
         if cos_instance_crn is None:
-            cos_instance_crn = os.getenv("COS_INSTANCE_CRN")
+            cos_instance_crn = settings.get("COS_INSTANCE_CRN")
 
         if (
             cos_endpoint is None
@@ -109,7 +110,7 @@ class COSClient:
             for bucket in response['Buckets']:
                 buckets_list.append(bucket['Name'])
         except ClientError as be:
-            logger.info("CLIENT ERROR: {0}\n".format(be))
+            logger.error("COS operation failed")
         return buckets_list
     
     def get_bucket_contents(self, bucket_name: str) -> List[str]:
@@ -145,9 +146,9 @@ class COSClient:
                 else:
                     break
         except ClientError as be:
-            logger.info("CLIENT ERROR: {0}\n".format(be))
+            logger.error("COS operation failed")
         except Exception as e:
-            logger.error("Unexpected error: {0}\n".format(e))
+            logger.error("COS operation failed")
         return file_names
     
     def get_contents_of_folder_in_bucket(self, bucket_name: str, folder_path:str) -> List[str]:
@@ -166,7 +167,7 @@ class COSClient:
             for obj in response.get('Contents', []):
                 file_names.append(obj['Key'])
         except ClientError as be:
-            logger.info("CLIENT ERROR: {0}\n".format(be))
+            logger.error("COS operation failed")
         return file_names
     
     def download_item(
@@ -215,7 +216,7 @@ class COSClient:
 
             return download_filename
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
             raise FileNotFoundError("File could not be found in the specified path.")
         
     def concurrent_download_items(
@@ -250,7 +251,7 @@ class COSClient:
                         download_filename = future.result()  # Get the result of the download (file path)
                         logger.info(f"Successfully downloaded {item} to {download_filename}")
                     except Exception as exc:
-                        logger.error(f"Error downloading {item}: {exc}")
+                        logger.error("COS operation failed")
                     finally:
                         pbar.update(1)  # Update progress bar after each file completes
 
@@ -271,7 +272,7 @@ class COSClient:
             self._cos.put_object(Bucket=bucket_name, Key=output_filepath, Body=data_json)
             logger.info(f"Uploaded JSON to {output_filepath} in bucket {bucket_name}")
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def upload_local_file_to_cos(self, local_filepath, bucket_name, output_filepath):
         """
@@ -289,7 +290,7 @@ class COSClient:
             self._cos.upload_file(local_filepath, bucket_name, output_filepath)
             logger.info(f"Uploaded {local_filepath} to {output_filepath} in bucket {bucket_name}")
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
             raise
 
     def read_json_from_cos(self, bucket_name: str, json_filepath: str) -> dict:
@@ -308,7 +309,7 @@ class COSClient:
             json_content = json.loads(response['Body'].read())
             return json_content
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def read_excel_from_cos(self, bucket_name: str, excel_filepath: str, sheet_name:str=None) -> pd.DataFrame:
         """
@@ -326,7 +327,7 @@ class COSClient:
             df = pd.read_excel(io.BytesIO(response['Body'].read()), sheet_name=sheet_name)
             return df
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def read_csv_from_cos(self, bucket_name: str, csv_filepath: str) -> pd.DataFrame:
         """
@@ -344,10 +345,10 @@ class COSClient:
             df = pd.read_csv(io.BytesIO(response['Body'].read()))
             return df
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
             raise
         except Exception as e:
-            logger.error(f"Error reading CSV file from {csv_filepath} in bucket {bucket_name}: {e}")
+            logger.error("COS operation failed")
 
 
     def save_df_to_cos_as_csv(self, df: pd.DataFrame, bucket_name: str, csv_filepath: str) -> None:
@@ -368,7 +369,7 @@ class COSClient:
             self._cos.put_object(Bucket=bucket_name, Key=csv_filepath, Body=csv_buffer.getvalue())
             logger.info(f"Uploaded DataFrame as CSV to {csv_filepath} in bucket {bucket_name}")
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def read_text_file_from_cos(self, bucket_name: str, text_filepath: str) -> str:
         """
@@ -386,7 +387,7 @@ class COSClient:
             txt_content = response['Body'].read().decode('utf-8')
             return txt_content
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def save_content_to_cos(self, content: str|Any, bucket_name: str, filepath: str) -> None:
         """
@@ -404,7 +405,7 @@ class COSClient:
             self._cos.put_object(Bucket=bucket_name, Key=filepath, Body=content)
             logger.info(f"Uploaded content to {filepath} in bucket {bucket_name}")
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def copy_file_within_cos(self, bucket_name: str, source_filepath: str, destination_filepath: str) -> None:
         """
@@ -423,7 +424,7 @@ class COSClient:
             self._cos.copy_object(CopySource=copy_source, Bucket=bucket_name, Key=destination_filepath)
             logger.info(f"Copied file from {source_filepath} to {destination_filepath} in bucket {bucket_name}")
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def copy_object_between_buckets(
         self, 
@@ -455,7 +456,7 @@ class COSClient:
                 f"Copied object from {source_bucket_name}/{source_key} to {destination_bucket_name}/{destination_key}"
             )
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
 
     def delete_file_from_cos(self, bucket_name: str, file_key: str) -> None:
         """
@@ -472,8 +473,8 @@ class COSClient:
             self._cos.delete_object(Bucket=bucket_name, Key=file_key)
             logger.info(f"Deleted file {file_key} from bucket {bucket_name}")
         except ClientError as be:
-            logger.info(f"CLIENT ERROR: {be}")
+            logger.error("COS operation failed")
             raise
         except Exception as e:
-            logger.error(f"Error deleting file {file_key} from bucket {bucket_name}: {e}")
+            logger.error("COS operation failed")
             raise

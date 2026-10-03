@@ -1,4 +1,4 @@
-import os
+from services.runtime_settings import get_settings
 from langchain_ibm import WatsonxLLM, ChatWatsonx
 from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
 from ibm_watsonx_ai.metanames import GenChatParamsMetaNames as ChatParams
@@ -27,10 +27,14 @@ def watsonx_chat_model(
     top_p=0.1,
     frequency_penalty=0,
     presence_penalty=0,
-    watsonx_apikey=os.getenv("WATSONX_APIKEY"),
-    watsonx_project_id=os.getenv("WATSONX_PROJECT_ID"),
-    watsonx_url=os.getenv("WATSONX_URL"),
+    watsonx_apikey=None,
+    watsonx_project_id=None,
+    watsonx_url=None,
 ):
+    settings = get_settings().values if any(value is None for value in (watsonx_apikey, watsonx_project_id, watsonx_url)) else {}
+    watsonx_apikey = settings.get('WATSONX_APIKEY') if watsonx_apikey is None else watsonx_apikey
+    watsonx_project_id = settings.get('WATSONX_PROJECT_ID') if watsonx_project_id is None else watsonx_project_id
+    watsonx_url = settings.get('WATSONX_URL') if watsonx_url is None else watsonx_url
     if not all([watsonx_apikey, watsonx_project_id, watsonx_url]):
         raise ValueError(
             "WATSONX_APIKEY, WATSONX_PROJECT_ID, and WATSONX_URL are required for watsonx.ai. "

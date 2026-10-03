@@ -12,6 +12,9 @@ def _safe_error_text(error_text: str | None) -> str | None:
     if error_text is None:
         return None
 
+    if os.environ.get("RUNTIME_CONFIG_MODE") == "database":
+        return "Application processing failed. Review the dependency status."
+
     safe_text = error_text
     for environment_name in ("WXO_API_KEY", "DATABASE_URL"):
         secret_value = os.getenv(environment_name)

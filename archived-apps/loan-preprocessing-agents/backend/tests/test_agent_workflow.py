@@ -1,3 +1,4 @@
+import os
 import json
 import sys
 import unittest
@@ -31,7 +32,7 @@ class AgentWorkflowTest(unittest.TestCase):
                     {"event": "message.created", "data": {"thread_id": "thread-1", "message": {"content": [{"text": json.dumps(summary)}]}}},
                 ]]
                 post.return_value = response
-                with patch.object(agents, "DOC_PROCESSOR_AGENT_ID", "processor"):
+                with patch.dict(os.environ, {"DOC_PROCESSOR_AGENT_ID": "processor"}):
                     result = agents._get_response_once("Process " + filename, agent_id, thread_id="thread-1")
                 parsed = json.loads(result["response"])
                 if other_file or agent_id != "processor":
@@ -59,7 +60,7 @@ class AgentWorkflowTest(unittest.TestCase):
         try:
             result = agents.get_response(
                 "Continue the existing workflow",
-                agents.FINAL_DECISION_AGENT_ID,
+                agents.get_settings().values.get("FINAL_DECISION_AGENT_ID"),
                 thread_id="final-thread",
                 preserve_thread_on_retry=True,
             )
@@ -207,7 +208,7 @@ class AgentWorkflowTest(unittest.TestCase):
         try:
             result = agents.get_response(
                 "Validate this document - demo-pass-ID-Doc.png",
-                agents.DOCUMENT_VALIDATION_AGENT_ID,
+                agents.get_settings().values.get("DOCUMENT_VALIDATION_AGENT_ID"),
             )
         except Exception as error:
             self.fail(f"A valid validator tool result should be recoverable: {error}")
@@ -260,7 +261,7 @@ class AgentWorkflowTest(unittest.TestCase):
         with self.assertRaises(agents.TransientAgentError):
             agents._get_response_once(
                 "Validate this document - id.png",
-                agents.DOCUMENT_VALIDATION_AGENT_ID,
+                agents.get_settings().values.get("DOCUMENT_VALIDATION_AGENT_ID"),
             )
 
     @patch("utils.agents.requests.post")
@@ -315,7 +316,7 @@ class AgentWorkflowTest(unittest.TestCase):
         with self.assertRaises(agents.TransientAgentError):
             agents._get_response_once(
                 "Validate this document - id.png",
-                agents.DOCUMENT_VALIDATION_AGENT_ID,
+                agents.get_settings().values.get("DOCUMENT_VALIDATION_AGENT_ID"),
             )
 
     @patch("utils.agents.requests.post")
@@ -388,10 +389,10 @@ class AgentWorkflowTest(unittest.TestCase):
             ],
             ["income.png", "id.png", "income.png", "id.png"],
             [
-                agents.DOC_PROCESSOR_AGENT_ID,
-                agents.DOC_PROCESSOR_AGENT_ID,
-                agents.DOCUMENT_VALIDATION_AGENT_ID,
-                agents.DOCUMENT_VALIDATION_AGENT_ID,
+                agents.get_settings().values.get("DOC_PROCESSOR_AGENT_ID"),
+                agents.get_settings().values.get("DOC_PROCESSOR_AGENT_ID"),
+                agents.get_settings().values.get("DOCUMENT_VALIDATION_AGENT_ID"),
+                agents.get_settings().values.get("DOCUMENT_VALIDATION_AGENT_ID"),
             ],
         ):
             self.assertTrue(agent_call.args[0].startswith(expected_prefix))

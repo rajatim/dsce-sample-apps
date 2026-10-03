@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "applications": {
+    "dsce": {
+      "auth": {
+        "AUTH_PROVIDER": {
+          "type": "string",
+          "public": false,
+          "default": "none",
+          "enum": [
+            "none",
+            "ibmid",
+            "ivia"
+          ]
+        },
+        "IBMID_CLIENT_ID": {
+          "type": "string",
+          "public": false
+        },
+        "IBMID_CLIENT_SECRET": {
+          "type": "string",
+          "public": false
+        },
+        "IBMID_WELL_KNOWN": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "IVIA_CLIENT_ID": {
+          "type": "string",
+          "public": false
+        },
+        "IVIA_CLIENT_SECRET": {
+          "type": "string",
+          "public": false
+        },
+        "IVIA_ISSUER": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "IVIA_WELL_KNOWN": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "IVIA_TOKEN_ENDPOINT_AUTH_METHOD": {
+          "type": "string",
+          "public": false,
+          "enum": [
+            "client_secret_basic",
+            "client_secret_post"
+          ]
+        },
+        "NEXTAUTH_URL": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "NEXTAUTH_SECRET": {
+          "type": "string",
+          "public": false
+        }
+      },
+      "content": {
+        "WIZARD_DATA_SOURCE": {
+          "type": "string",
+          "public": false,
+          "default": "local",
+          "enum": [
+            "local",
+            "cos"
+          ]
+        },
+        "ASSETS_COS_ENDPOINT": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "ASSETS_COS_INSTANCE_ID": {
+          "type": "string",
+          "public": false
+        },
+        "ASSETS_COS_PRIV_BUCKET": {
+          "type": "string",
+          "public": false
+        },
+        "CLOUD_SERVICEID_KEY": {
+          "type": "string",
+          "public": false
+        },
+        "LOAN_DEMO_URL": {
+          "type": "string",
+          "public": true,
+          "url": true
+        },
+        "WEALTH_DEMO_URL": {
+          "type": "string",
+          "public": true,
+          "url": true
+        }
+      },
+      "email": {
+        "EMAIL_HOST": {
+          "type": "string",
+          "public": false
+        },
+        "EMAIL_PORT": {
+          "type": "string",
+          "public": false
+        },
+        "EMAIL_USER": {
+          "type": "string",
+          "public": false
+        },
+        "EMAIL_PASS": {
+          "type": "string",
+          "public": false
+        },
+        "EMAIL_TO": {
+          "type": "string",
+          "public": false
+        },
+        "EMAIL_FROM": {
+          "type": "string",
+          "public": false
+        }
+      }
+    },
+    "loan": {
+      "wxo": {
+        "WXO_INSTANCE_CLOUD": {
+          "type": "string",
+          "public": false,
+          "default": "ibmcloud",
+          "enum": [
+            "cpd",
+            "ibmcloud",
+            "aws"
+          ]
+        },
+        "WXO_INSTANCE_CLOUD_REGION": {
+          "type": "string",
+          "public": false,
+          "default": "us-south"
+        },
+        "WXO_INSTANCE_ID": {
+          "type": "string",
+          "public": false
+        },
+        "WXO_SERVICE_INSTANCE_URL": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "WXO_CPD_USERNAME": {
+          "type": "string",
+          "public": false
+        },
+        "WXO_API_KEY": {
+          "type": "string",
+          "public": false
+        },
+        "DOC_PROCESSOR_AGENT_ID": {
+          "type": "string",
+          "public": false
+        },
+        "DOCUMENT_VALIDATION_AGENT_ID": {
+          "type": "string",
+          "public": false
+        },
+        "FINAL_DECISION_AGENT_ID": {
+          "type": "string",
+          "public": false
+        }
+      },
+      "watsonx": {
+        "WATSONX_APIKEY": {
+          "type": "string",
+          "public": false
+        },
+        "WATSONX_PROJECT_ID": {
+          "type": "string",
+          "public": false
+        },
+        "WATSONX_URL": {
+          "type": "string",
+          "public": false,
+          "url": true
+        }
+      },
+      "cos": {
+        "COS_ENDPOINT": {
+          "type": "string",
+          "public": false,
+          "url": true
+        },
+        "COS_BUCKET_NAME": {
+          "type": "string",
+          "public": false,
+          "default": "loan-processing-bucket"
+        },
+        "COS_API_KEY_ID": {
+          "type": "string",
+          "public": false
+        },
+        "COS_INSTANCE_CRN": {
+          "type": "string",
+          "public": false
+        }
+      },
+      "auth": {
+        "JWT_SECRET_KEY": {
+          "type": "string",
+          "public": false
+        }
+      },
+      "demo": {
+        "DEMO_USERNAME": {
+          "type": "string",
+          "public": false
+        },
+        "DEMO_PASSWORD": {
+          "type": "string",
+          "public": false
+        },
+        "DEMO_FIRST_NAME": {
+          "type": "string",
+          "public": false
+        },
+        "DEMO_LAST_NAME": {
+          "type": "string",
+          "public": false
+        },
+        "DEMO_DATE_OF_BIRTH": {
+          "type": "string",
+          "public": false
+        }
+      }
+    }
+  }
+}

@@ -11,7 +11,6 @@ import yaml
 import shutil
 import uvicorn
 import uuid
-from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -47,8 +46,12 @@ from utils.kv_extraction import extract_key_value_pairs
 
 # These are your local modules
 import models, schemas, security, database
+from services.runtime_settings import get_settings, settings_context, ConfigurationUnavailable
+
+from services.runtime_settings_http import RuntimeSettingsMiddleware
 
 app = FastAPI(title="Loan Application API")
+app.add_middleware(RuntimeSettingsMiddleware)
 
 
 @app.get("/healthz", include_in_schema=False)
@@ -56,7 +59,6 @@ async def healthcheck():
     return {"status": "ok"}
 
 
-@lru_cache(maxsize=1)
 def get_image_client():
     return ChatWithImage(
         model_id="meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
@@ -66,12 +68,10 @@ def get_image_client():
     )
 
 
-@lru_cache(maxsize=1)
 def get_cos_client():
     return COSClient()
 
 
-@lru_cache(maxsize=1)
 def get_status_cos_client():
     return COSClient.for_status_check()
 
@@ -85,7 +85,8 @@ app.add_middleware(
 )
 initialize_observability(app)
 
-COS_BUCKET_NAME = os.getenv("COS_BUCKET_NAME", "loan-processing-bucket")
+def cos_bucket_name():
+    return get_settings().values.get("COS_BUCKET_NAME", "loan-processing-bucket")
 status_database_session_factory = build_status_session_factory(
     database.resolve_database_url()
 )
@@ -96,13 +97,13 @@ system_status_service = SystemStatusService(
             status_database_session_factory, checked_at
         ),
         "cos": lambda checked_at: check_cos(
-            get_status_cos_client, COS_BUCKET_NAME, checked_at
+            get_status_cos_client, cos_bucket_name(), checked_at
         ),
         "watsonx_ai": lambda checked_at: check_watsonx(
-            os.environ, status_http_client, checked_at
+            get_settings().values, status_http_client, checked_at
         ),
         "wxo": lambda checked_at: check_wxo(
-            os.environ,
+            get_settings().values,
             status_http_client,
             checked_at,
         ),
@@ -115,6 +116,10 @@ system_status_service = SystemStatusService(
 
 @app.get("/readyz", include_in_schema=False)
 def readiness():
+    try:
+        get_settings()
+    except ConfigurationUnavailable:
+        return JSONResponse(status_code=503, content={"status": "configuration_unavailable"})
     if system_status_service.database_is_ready():
         return {"status": "ready"}
     return JSONResponse(status_code=503, content={"status": "not_ready"})
@@ -125,9 +130,18 @@ def system_status(response: Response, refresh: bool = False, dependency: Depende
     response.headers["Cache-Control"] = "no-store"
     if dependency is not None and not refresh:
         raise HTTPException(status_code=422, detail="A dependency requires refresh=true.")
-    if dependency is None:
-        return system_status_service.get_status(force_refresh=refresh)
-    return system_status_service.get_status(force_refresh=refresh, dependency_id=dependency)
+    def result():
+        if dependency is None:
+            return system_status_service.get_status(force_refresh=refresh)
+        return system_status_service.get_status(force_refresh=refresh, dependency_id=dependency)
+    try:
+        snapshot = get_settings()
+    except ConfigurationUnavailable:
+        # Keep diagnostics available; dependent checks report configuration failure.
+        return result()
+    with settings_context(snapshot):
+        return result()
+
 
 
 # --- File Handling ---
@@ -166,7 +180,7 @@ def save_upload_file(upload_file: UploadFile, destination: str):
             shutil.copyfileobj(upload_file.file, buffer)
         get_cos_client().upload_local_file_to_cos(
             local_filepath=destination,
-            bucket_name=COS_BUCKET_NAME,
+            bucket_name=cos_bucket_name(),
             output_filepath=destination,
         )
     finally:
@@ -321,7 +335,7 @@ def recover_application_inputs(app_id_str: str):
     source_paths.update(
         _normalize_upload_path(path)
         for path in get_cos_client().get_contents_of_folder_in_bucket(
-            COS_BUCKET_NAME,
+            cos_bucket_name(),
             f"{cos_prefix}/",
         )
     )
@@ -395,15 +409,14 @@ def process_application_in_background(app_id, uploaded_files, application_file_p
             application_id=app_id_str,
             on_retry=mark_retrying,
         )
-        print("Application Status from Agents:\n", application_status)
         application_to_update.status = application_status.get("loan_application_status", "Processing Failed")
         validation_comments = application_status.get("validation_details", {"error": "Error processing application"})
         application_to_update.validation_comments = dict_to_markdown(validation_comments)
         db.commit()
         run_status = "completed"
     except Exception as error:
-        run_error = str(error)
-        print(f"BACKGROUND TASK ERROR: Application {app_id} processing failed: {error}")
+        run_error = "Application processing failed. Review the dependency status."
+        print("BACKGROUND TASK ERROR: Application processing failed")
         if 'application_to_update' in locals() and application_to_update:
             application_to_update.status = "Processing Failed"
             application_to_update.validation_comments = dict_to_markdown({
@@ -559,7 +572,7 @@ async def submit_application_form(
     application_file_path = os.path.join(app_upload_dir, "application_data.json")
     get_cos_client().upload_json_to_cos(
         json_content=form_data,
-        bucket_name=COS_BUCKET_NAME,
+        bucket_name=cos_bucket_name(),
         output_filepath=application_file_path,
     )
 
@@ -593,7 +606,7 @@ async def submit_application_form(
                 saved_documents.append((file_key, metadata))
         record_saved_documents(new_application, saved_documents)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving files: {e}")
+        raise HTTPException(status_code=500, detail="Error saving files")
 
     background_tasks.add_task(
         process_application_in_background,
@@ -656,7 +669,7 @@ async def submit_pdf_form(
             uploaded_files.append(path)
             saved_documents.append((file_key, metadata))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving files: {e}")
+        raise HTTPException(status_code=500, detail="Error saving files")
     
     if demoScenario == "pass" and os.path.basename(application_pdf_path).startswith("demo-pass-"):
         form_data = dict(PASS_DEMO_APPLICATION_DATA)
@@ -672,7 +685,7 @@ async def submit_pdf_form(
     application_file_path = os.path.join(app_upload_dir, "application_data.json")
     get_cos_client().upload_json_to_cos(
         json_content=form_data,
-        bucket_name=COS_BUCKET_NAME,
+        bucket_name=cos_bucket_name(),
         output_filepath=application_file_path,
     )
 

@@ -13,22 +13,17 @@ from repositories.agent_events import append_event
 
 load_dotenv(override=False)
 
-WXO_API_KEY = os.getenv("WXO_API_KEY")
-WXO_INSTANCE_ID = os.getenv("WXO_INSTANCE_ID")
-WXO_SERVICE_INSTANCE_URL = os.getenv("WXO_SERVICE_INSTANCE_URL")
-DOC_PROCESSOR_AGENT_ID = os.getenv("DOC_PROCESSOR_AGENT_ID")
-DOCUMENT_VALIDATION_AGENT_ID = os.getenv("DOCUMENT_VALIDATION_AGENT_ID")
-FINAL_DECISION_AGENT_ID = os.getenv("FINAL_DECISION_AGENT_ID")
-WXO_INSTANCE_CLOUD = os.getenv("WXO_INSTANCE_CLOUD", "ibmcloud")
-WXO_INSTANCE_CLOUD_REGION = os.getenv("WXO_INSTANCE_CLOUD_REGION", "us-south")
-WXO_CPD_USERNAME = os.getenv("WXO_CPD_USERNAME")
+from services.runtime_settings import get_settings, pin_settings
 
-if WXO_SERVICE_INSTANCE_URL:
-    base_url = f"{WXO_SERVICE_INSTANCE_URL.rstrip('/')}/v1/orchestrate"
-elif WXO_INSTANCE_CLOUD == "ibmcloud":
-    base_url = f"https://api.{WXO_INSTANCE_CLOUD_REGION}.watson-orchestrate.cloud.ibm.com/instances/{WXO_INSTANCE_ID}/v1/orchestrate"
-else:
-    base_url = f"https://api.dl.watson-orchestrate.ibm.com/instances/{WXO_INSTANCE_ID}/v1/orchestrate"
+
+def _base_url():
+    values = get_settings().values
+    explicit = values.get('WXO_SERVICE_INSTANCE_URL')
+    if explicit:
+        return f"{explicit.rstrip('/')}/v1/orchestrate"
+    if values.get('WXO_INSTANCE_CLOUD') == 'ibmcloud':
+        return f"https://api.{values.get('WXO_INSTANCE_CLOUD_REGION')}.watson-orchestrate.cloud.ibm.com/instances/{values.get('WXO_INSTANCE_ID')}/v1/orchestrate"
+    return f"https://api.dl.watson-orchestrate.ibm.com/instances/{values.get('WXO_INSTANCE_ID')}/v1/orchestrate"
 
 MAX_AGENT_ATTEMPTS = 3
 MAX_DOCUMENT_FILENAME_ATTEMPTS = 2
@@ -103,8 +98,13 @@ def _record_agent_failure(
             type(error).__name__,
         )
 
+@pin_settings
 def get_bearer_token(API_KEY) -> str:
     """Obtain bearer token from API key"""
+    settings = get_settings().values
+    WXO_CPD_USERNAME = settings.get("WXO_CPD_USERNAME")
+    WXO_INSTANCE_CLOUD = settings.get("WXO_INSTANCE_CLOUD")
+    WXO_SERVICE_INSTANCE_URL = settings.get("WXO_SERVICE_INSTANCE_URL")
     if WXO_INSTANCE_CLOUD == "cpd":
         service_url = urlsplit(WXO_SERVICE_INSTANCE_URL or "")
         if (
@@ -121,6 +121,7 @@ def get_bearer_token(API_KEY) -> str:
                 headers={"Content-Type": "application/json"},
                 json={"username": WXO_CPD_USERNAME, "api_key": API_KEY},
                 timeout=(10, 20),
+                allow_redirects=False,
             )
             if response.status_code != 200:
                 raise RuntimeError("CPD authentication failed")
@@ -140,22 +141,25 @@ def get_bearer_token(API_KEY) -> str:
         data = {
             "apikey": API_KEY
         }
-        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=30)
+        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=30, allow_redirects=False)
         token = response.json().get("token")
     elif WXO_INSTANCE_CLOUD =="ibmcloud":
         api_url_token = 'https://iam.cloud.ibm.com/identity/token'
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         payload = f"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey={API_KEY}"
-        response = requests.post(url=api_url_token, headers=headers, data=payload, timeout=30)
+        response = requests.post(url=api_url_token, headers=headers, data=payload, timeout=30, allow_redirects=False)
         if response.status_code != 200:
-            raise Exception("Non-200 response: " + str(response.text))
+            raise RuntimeError("WXO authentication failed")
         token = response.json()["access_token"]
     else:
         raise ValueError("Unsupported WXO provider")
     return token
 
 
+@pin_settings
 def create_thread(agent_id: str, message: str, token: Optional[str] = None) -> str:
+    settings = get_settings().values
+    WXO_API_KEY = settings.get("WXO_API_KEY")
     payload = {
         "title": message,
         "agent_id": agent_id
@@ -168,27 +172,33 @@ def create_thread(agent_id: str, message: str, token: Optional[str] = None) -> s
         'Content-Type': 'application/json'
     }
 
-    url = f"{base_url}/threads"
+    url = f"{_base_url()}/threads"
     response = requests.post(
         url,
         headers=headers,
         data=json.dumps(payload),
         timeout=(30, 60),
+        allow_redirects=False,
     )
     if response.status_code in (408, 429) or response.status_code >= 500:
-        raise TransientAgentError(response.content.decode("utf-8"))
+        raise TransientAgentError("WXO request temporarily unavailable")
     if response.status_code != 201:
-        raise Exception(response.content.decode("utf-8"))
+        raise RuntimeError("WXO request rejected")
     
     data = response.json()
     return data["thread_id"]
 
+@pin_settings
 def _get_response_once(
     message: str,
     agent_id: str,
     thread_id: Optional[str] = None,
     application_id: Optional[str] = None,
 ):
+    settings = get_settings().values
+    DOCUMENT_VALIDATION_AGENT_ID = settings.get("DOCUMENT_VALIDATION_AGENT_ID")
+    DOC_PROCESSOR_AGENT_ID = settings.get("DOC_PROCESSOR_AGENT_ID")
+    WXO_API_KEY = settings.get("WXO_API_KEY")
     token = get_bearer_token(WXO_API_KEY)
 
     if not thread_id:
@@ -210,7 +220,7 @@ def _get_response_once(
         'Content-Type': 'application/json'
     }
 
-    url = f"{base_url}/runs/stream"
+    url = f"{_base_url()}/runs/stream"
 
     response = requests.post(
         url,
@@ -218,11 +228,12 @@ def _get_response_once(
         data=json.dumps(payload),
         stream=True,
         timeout=(30, 180),
+        allow_redirects=False,
     )
     if response.status_code in (408, 429) or response.status_code >= 500:
-        raise TransientAgentError(response.content.decode("utf-8"))
+        raise TransientAgentError("WXO request temporarily unavailable")
     if response.status_code != 200:
-        raise Exception(response.content.decode("utf-8"))
+        raise RuntimeError("WXO request rejected")
     answer = ""
     last_validator_tool_response = None
     processor_tool_results = {}
@@ -234,7 +245,6 @@ def _get_response_once(
 
                 if event_data.get("event") == "run.step.delta":
                     step_delta = event_data.get("data", {}).get("delta", {})
-                    print(step_delta)
                     step_details = step_delta.get("step_details", [])
                     if agent_id == DOC_PROCESSOR_AGENT_ID:
                         for detail in step_details:
@@ -342,7 +352,7 @@ def get_response(
                     "retry",
                     {
                         "attempt": next_attempt,
-                        "reason": str(error),
+                        "reason": "Agent request interrupted",
                     },
                 )
             if on_retry:
@@ -585,12 +595,17 @@ def _collect_document_results(
 
 
 @trace_agent(name="loan_agent_workflow")
+@pin_settings
 def invoke_agents(
     document_names,
     loan_application_file,
     application_id=None,
     on_retry: Optional[Callable[[int, Exception], None]] = None,
 ):
+    settings = get_settings().values
+    DOCUMENT_VALIDATION_AGENT_ID = settings.get("DOCUMENT_VALIDATION_AGENT_ID")
+    DOC_PROCESSOR_AGENT_ID = settings.get("DOC_PROCESSOR_AGENT_ID")
+    FINAL_DECISION_AGENT_ID = settings.get("FINAL_DECISION_AGENT_ID")
     documents = _document_list(document_names)
     scenario = _demo_scenario(documents)
     if application_id:

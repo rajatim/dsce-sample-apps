@@ -1,0 +1,26 @@
+{
+  "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+  "expected": {
+    "message": "Non-secret test vector 測試"
+  },
+  "record": {
+    "environment": "test",
+    "application": "loan",
+    "group": "wxo",
+    "revision": "00000000-0000-4000-8000-000000000001",
+    "schema_version": 1,
+    "key_id": "test-key",
+    "nonce": "IUK7qqAxS5goNUvR",
+    "ciphertext": "G6KAMQnwEUIooy4h2JGolR6UE8JEFyN2Ag8wGtAh+hxCLLfsoBZRYSTY6HqS6oEEZMxEoeRDuPjPoHc="
+  },
+  "python_record": {
+    "environment": "test",
+    "application": "loan",
+    "group": "wxo",
+    "revision": "00000000-0000-4000-8000-000000000001",
+    "schema_version": 1,
+    "key_id": "test-key",
+    "nonce": "vTPb1fE0ERXgVPzR",
+    "ciphertext": "zFhtOUjiivvYv5QtjedC7ZRetQ6FXtOsVcnAqNTTfWn40KOqXOSd1tfV9gPH7iyznd6my631IH399MU="
+  }
+}

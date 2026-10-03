@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from database import build_engine
 import models
 import security
+from services.runtime_settings import get_settings
 
 
 class DemoUserConfigurationError(ValueError):
@@ -38,9 +39,10 @@ class DemoUserSettings:
             "DEMO_LAST_NAME",
             "DEMO_DATE_OF_BIRTH",
         )
+        settings = get_settings().values
         values = {}
         for variable_name in variable_names:
-            value = os.getenv(variable_name)
+            value = settings.get(variable_name)
             if not value:
                 raise DemoUserConfigurationError(
                     f"Missing required environment variable: {variable_name}"

@@ -5,6 +5,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from contextvars import copy_context
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError, wait
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -86,7 +87,7 @@ class SystemStatusService:
         checked_at, started = self._clock(), self._monotonic_clock()
         def run():
             return check() if group == 'activity' else check(checked_at)
-        job = _Job(self._executor.submit(run), checked_at, started)
+        job = _Job(self._executor.submit(copy_context().run, run), checked_at, started)
         self._jobs[group] = job
         return job, False
 

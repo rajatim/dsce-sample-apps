@@ -79,6 +79,7 @@ def _token(response, service, field):
 def build_status_http_client() -> requests.Session:
     """Create a status-only HTTP client with explicitly disabled retries."""
     client = requests.Session()
+    client.max_redirects = 0
     adapter = HTTPAdapter(max_retries=0)
     client.mount("https://", adapter)
     client.mount("http://", adapter)

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.14,<2",
+    "cryptography>=44,<47",
     "fastapi>=0.115.14",
     "ibm-cos-sdk>=2.14.3",
     "langchain>=0.3.27",

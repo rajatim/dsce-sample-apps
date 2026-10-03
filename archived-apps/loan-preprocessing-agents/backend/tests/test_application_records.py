@@ -489,7 +489,7 @@ class ApplicationRecordRepositoryTests(unittest.TestCase):
         self.assertEqual(self.application.status, "Processing Failed")
         self.assertEqual(second_run.status, "failed")
         self.assertIsNotNone(second_run.finished_at)
-        self.assertEqual(second_run.error_text, "Agent timeout")
+        self.assertEqual(second_run.error_text, "Application processing failed. Review the dependency status.")
 
     def test_completed_run_records_terminal_state(self):
         run_id = application_records.start_processing_run(self.application.id)

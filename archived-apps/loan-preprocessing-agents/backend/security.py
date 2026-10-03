@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-import os
+from services.runtime_settings import get_settings, ConfigurationUnavailable
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 import models, schemas, database
 
 # --- Configuration ---
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "YOUR_SUPER_SECRET_KEY_CHANGE_THIS")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -23,6 +22,12 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
+def _signing_secret():
+    value = get_settings().values.get("JWT_SECRET_KEY")
+    if not value:
+        raise ConfigurationUnavailable()
+    return value
+
 # --- JWT Token Handling ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -33,7 +38,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _signing_secret(), algorithm=ALGORITHM)
     return encoded_jwt
 
 # --- User Dependency ---
@@ -47,7 +52,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, _signing_secret(), algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception

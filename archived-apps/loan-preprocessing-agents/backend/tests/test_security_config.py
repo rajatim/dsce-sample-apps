@@ -19,7 +19,7 @@ class SecurityConfigTests(unittest.TestCase):
                 "-c",
                 (
                     "import security; "
-                    "print(security.SECRET_KEY == 'runtime-only-test-key')"
+                    "print(security.get_settings().values['JWT_SECRET_KEY'] == 'runtime-only-test-key')"
                 ),
             ],
             cwd=BACKEND_DIRECTORY,

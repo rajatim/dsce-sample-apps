@@ -5,6 +5,7 @@ import re
 import requests
 
 from status_models import StatusProblem
+from services.runtime_crypto import ConfigurationUnavailable
 
 # Exact reviewed provider vocabulary. Arbitrary text is never safe by default.
 _PROVIDER_CODES = frozenset({
@@ -64,6 +65,8 @@ def problem_from_http(*, service, stage, status_code, payload, headers):
 
 
 def problem_from_exception(*, service, stage, error):
+    if isinstance(error, ConfigurationUnavailable):
+        return problem_for(service=service, stage="configuration", code="missing_configuration")
     # Typed adapters may already carry a sanitized problem from an HTTP response.
     if isinstance(getattr(error, 'problem', None), StatusProblem):
         return error.problem

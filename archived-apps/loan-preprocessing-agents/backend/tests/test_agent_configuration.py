@@ -19,13 +19,9 @@ class AgentConfigurationTest(unittest.TestCase):
             status_code=200, json=lambda: {"token": "cpd-bearer-token"}
         )
         with (
-            patch.object(agents, "WXO_INSTANCE_CLOUD", "cpd"),
-            patch.object(agents, "WXO_CPD_USERNAME", "kubeadmin", create=True),
-            patch.object(
-                agents,
-                "WXO_SERVICE_INSTANCE_URL",
-                "https://cpd.example/orchestrate/cpd-instance/instances/123",
-            ),
+            patch.dict(os.environ, {"WXO_INSTANCE_CLOUD": "cpd"}),
+            patch.dict(os.environ, {"WXO_CPD_USERNAME": "kubeadmin"}),
+            patch.dict(os.environ, {"WXO_SERVICE_INSTANCE_URL": "https://cpd.example/orchestrate/cpd-instance/instances/123"}),
             patch.object(agents.requests, "post", return_value=response) as post,
         ):
             token = agents.get_bearer_token("test-api-key")
@@ -36,6 +32,7 @@ class AgentConfigurationTest(unittest.TestCase):
             headers={"Content-Type": "application/json"},
             json={"username": "kubeadmin", "api_key": "test-api-key"},
             timeout=(10, 20),
+            allow_redirects=False,
         )
 
     def test_cpd_rejected_token_does_not_expose_key_or_response(self):
@@ -43,13 +40,9 @@ class AgentConfigurationTest(unittest.TestCase):
             status_code=401, json=lambda: {"message": "test-api-key denied"}
         )
         with (
-            patch.object(agents, "WXO_INSTANCE_CLOUD", "cpd"),
-            patch.object(agents, "WXO_CPD_USERNAME", "kubeadmin", create=True),
-            patch.object(
-                agents,
-                "WXO_SERVICE_INSTANCE_URL",
-                "https://cpd.example/orchestrate/cpd-instance/instances/123",
-            ),
+            patch.dict(os.environ, {"WXO_INSTANCE_CLOUD": "cpd"}),
+            patch.dict(os.environ, {"WXO_CPD_USERNAME": "kubeadmin"}),
+            patch.dict(os.environ, {"WXO_SERVICE_INSTANCE_URL": "https://cpd.example/orchestrate/cpd-instance/instances/123"}),
             patch.object(agents.requests, "post", return_value=response),
         ):
             with self.assertRaises(RuntimeError) as captured:
@@ -61,13 +54,9 @@ class AgentConfigurationTest(unittest.TestCase):
     def test_cpd_empty_token_is_rejected(self):
         response = SimpleNamespace(status_code=200, json=lambda: {"token": ""})
         with (
-            patch.object(agents, "WXO_INSTANCE_CLOUD", "cpd"),
-            patch.object(agents, "WXO_CPD_USERNAME", "kubeadmin", create=True),
-            patch.object(
-                agents,
-                "WXO_SERVICE_INSTANCE_URL",
-                "https://cpd.example/orchestrate/cpd-instance/instances/123",
-            ),
+            patch.dict(os.environ, {"WXO_INSTANCE_CLOUD": "cpd"}),
+            patch.dict(os.environ, {"WXO_CPD_USERNAME": "kubeadmin"}),
+            patch.dict(os.environ, {"WXO_SERVICE_INSTANCE_URL": "https://cpd.example/orchestrate/cpd-instance/instances/123"}),
             patch.object(agents.requests, "post", return_value=response),
         ):
             with self.assertRaisesRegex(RuntimeError, "CPD authentication failed"):
@@ -76,13 +65,9 @@ class AgentConfigurationTest(unittest.TestCase):
     def test_cpd_malformed_token_payload_is_rejected_without_details(self):
         response = SimpleNamespace(status_code=200, json=lambda: ["test-api-key"])
         with (
-            patch.object(agents, "WXO_INSTANCE_CLOUD", "cpd"),
-            patch.object(agents, "WXO_CPD_USERNAME", "kubeadmin", create=True),
-            patch.object(
-                agents,
-                "WXO_SERVICE_INSTANCE_URL",
-                "https://cpd.example/orchestrate/cpd-instance/instances/123",
-            ),
+            patch.dict(os.environ, {"WXO_INSTANCE_CLOUD": "cpd"}),
+            patch.dict(os.environ, {"WXO_CPD_USERNAME": "kubeadmin"}),
+            patch.dict(os.environ, {"WXO_SERVICE_INSTANCE_URL": "https://cpd.example/orchestrate/cpd-instance/instances/123"}),
             patch.object(agents.requests, "post", return_value=response),
         ):
             with self.assertRaises(RuntimeError) as captured:
@@ -91,7 +76,7 @@ class AgentConfigurationTest(unittest.TestCase):
         self.assertEqual(str(captured.exception), "CPD authentication failed")
 
     def test_unknown_wxo_provider_is_rejected(self):
-        with patch.object(agents, "WXO_INSTANCE_CLOUD", "unknown-provider"):
+        with patch.dict(os.environ, {"WXO_INSTANCE_CLOUD": "unknown-provider"}):
             with self.assertRaisesRegex(ValueError, "Unsupported WXO provider"):
                 agents.get_bearer_token("test-api-key")
 
@@ -108,7 +93,7 @@ class AgentConfigurationTest(unittest.TestCase):
             }
         )
         result = subprocess.run(
-            [sys.executable, "-c", "from utils.agents import base_url; print(base_url)"],
+            [sys.executable, "-c", "from utils.agents import _base_url; print(_base_url())"],
             cwd=BACKEND_DIRECTORY,
             env=environment,
             capture_output=True,
@@ -143,8 +128,8 @@ class AgentConfigurationTest(unittest.TestCase):
                 "-c",
                 (
                     "import json; "
-                    "from utils.agents import WXO_API_KEY, base_url; "
-                    "print(json.dumps({'api_key': WXO_API_KEY, 'base_url': base_url}))"
+                    "from utils.agents import get_settings, _base_url; "
+                    "print(json.dumps({'api_key': get_settings().values['WXO_API_KEY'], 'base_url': _base_url()}))"
                 ),
             ],
             cwd=BACKEND_DIRECTORY,

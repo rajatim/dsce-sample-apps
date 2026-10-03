@@ -190,7 +190,7 @@ class ApplicationRetryTest(unittest.TestCase):
             )
 
         cos_client.get_contents_of_folder_in_bucket.assert_called_once_with(
-            main.COS_BUCKET_NAME,
+            main.cos_bucket_name(),
             cos_prefix,
         )
         self.assertEqual(
