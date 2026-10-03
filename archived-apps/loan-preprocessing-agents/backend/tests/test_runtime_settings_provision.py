@@ -27,6 +27,7 @@ class ProvisionTests(unittest.TestCase):
                     self.assertEqual(marker[0],'runtime-config:provision-test:runtime_settings_provision_20261003')
                     connection.execute(sql.SQL('DROP OWNED BY {}').format(sql.Identifier(role)))
                     connection.execute(sql.SQL('DROP ROLE {}').format(sql.Identifier(role)))
+            connection.execute('REVOKE CONNECT ON DATABASE runtime_settings_provision_20261003 FROM PUBLIC')
             connection.execute('CREATE TABLE IF NOT EXISTS public.applications(status text)')
         with tempfile.TemporaryDirectory() as directory:
             profile={'environment':'provision-test','database':'runtime_settings_provision_20261003','admin_dsn':dsn,'runtime_url':'postgresql://tim@localhost/runtime_settings_provision_20261003','allowed_hosts':{'dsce':['app.example.test'],'loan':['provider.example.test']}}

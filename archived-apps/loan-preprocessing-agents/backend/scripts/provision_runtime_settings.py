@@ -86,6 +86,7 @@ def provision(profile,directory,action):
         else:
             for name in ('dsce','loan','writer'):
                 role=ROLES[name]
+                connection.execute(sql.SQL('GRANT CONNECT ON DATABASE {} TO {}').format(sql.Identifier(database),sql.Identifier(role)))
                 connection.execute(sql.SQL('GRANT USAGE ON SCHEMA runtime_config TO {}').format(sql.Identifier(role)))
                 connection.execute(sql.SQL('GRANT SELECT ON ALL TABLES IN SCHEMA runtime_config TO {}').format(sql.Identifier(role)))
                 for app in (('dsce','loan') if name=='writer' else (name,)):
