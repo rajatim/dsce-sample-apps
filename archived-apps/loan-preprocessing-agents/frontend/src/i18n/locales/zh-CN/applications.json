@@ -48,5 +48,6 @@
     "range": "第 {{min}}–{{max}} 条，共 {{total}} 条",
     "pages": "共 {{total}} 页",
     "page": "第 {{page}} 页"
-  }
+  },
+  "updating": "正在更新申请资料…"
 }

@@ -48,5 +48,6 @@
     "range": "第 {{min}}–{{max}} 筆，共 {{total}} 筆",
     "pages": "共 {{total}} 頁",
     "page": "第 {{page}} 頁"
-  }
+  },
+  "updating": "正在更新申請資料…"
 }

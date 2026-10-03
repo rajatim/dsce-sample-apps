@@ -275,4 +275,45 @@ describe('server table navigation', () => {
     expect(screen.getByText('after-retry')).toBeVisible();
   });
 
+  it('shows pending navigation while retaining the resolved page range', async () => {
+    let resolvePage;
+    authFetchMock.mockResolvedValueOnce(pageResponse(1))
+      .mockImplementationOnce(() => new Promise(resolve => {resolvePage = resolve;}));
+    render(<MyApplications />);
+    await flushRequests();
+    fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
+    await flushRequests();
+    expect(screen.getByText('Updating applications...')).toBeVisible();
+    expect(screen.getByText('1–50 of 121 items')).toBeVisible();
+    expect(screen.queryByText('51–100 of 121 items')).not.toBeInTheDocument();
+    await act(async () => {resolvePage(pageResponse(2));});
+    expect(screen.getByText('51–100 of 121 items')).toBeVisible();
+    expect(screen.queryByText('Updating applications...')).not.toBeInTheDocument();
+  });
+  it('invalidates all pre-update requests when revisiting a pending query', async () => {
+    let resolveOldPage2, resolveOldSort;
+    authFetchMock.mockResolvedValueOnce(pageResponse(1))
+      .mockImplementationOnce(() => new Promise(resolve => {resolveOldPage2 = resolve;}))
+      .mockImplementationOnce(() => new Promise(resolve => {resolveOldSort = resolve;}))
+      .mockResolvedValue(pageResponse(1, false, 'fresh-after-update'));
+    render(<MyApplications />);
+    await flushRequests();
+    fireEvent.click(screen.getByText('page-1'));
+    const panel = setPanelContentMock.mock.lastCall[0];
+    fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
+    await flushRequests();
+    fireEvent.change(screen.getByRole('combobox', {name: 'Page number'}), {target: {value: '1'}});
+    await flushRequests();
+    act(() => {panel.props.onApplicationChange(application('Retrying'));});
+    await flushRequests();
+    fireEvent.change(screen.getByRole('combobox', {name: 'Page number'}), {target: {value: '2'}});
+    await flushRequests();
+    await act(async () => {resolveOldSort(pageResponse(1, false, 'old-sort'));});
+    await flushRequests();
+    await act(async () => {resolveOldPage2(pageResponse(2, false, 'old-page'));});
+    expect(screen.getByText('fresh-after-update')).toBeVisible();
+    expect(screen.queryByText('old-sort')).not.toBeInTheDocument();
+    expect(screen.queryByText('old-page')).not.toBeInTheDocument();
+  });
+
 });

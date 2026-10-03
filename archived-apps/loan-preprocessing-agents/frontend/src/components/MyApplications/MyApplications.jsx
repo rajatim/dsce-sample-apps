@@ -11,6 +11,7 @@ import {
   TableContainer,
   Loading,
   InlineNotification,
+  InlineLoading,
   Tag,
   Pagination
 } from '@carbon/react';
@@ -59,12 +60,14 @@ const MyApplications = () => {
   const fetchInFlightRef = useRef(new Map());
   const mountedRef = useRef(false);
   const [query, setQuery] = useState({ page: 1, sortBy: 'submitted_date', direction: 'desc' });
-  const [metadata, setMetadata] = useState({ total: 0, active: false });
+  const [metadata, setMetadata] = useState({ total: 0, active: false, page: 1, sortBy: 'submitted_date', direction: 'desc' });
+  const [revision, setRevision] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const queryKey = new URLSearchParams({page: query.page, page_size: 50,
     sort_by: query.sortBy, sort_direction: query.direction}).toString();
-  const currentQueryRef = useRef(queryKey);
-  const latestFetchRef = useRef(null);
-  currentQueryRef.current = queryKey;
+  const requestKey = `${queryKey}:${revision}`;
+  const currentQueryRef = useRef(requestKey);
+  currentQueryRef.current = requestKey;
   const [applications, setApplications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -80,10 +83,11 @@ const MyApplications = () => {
   ];
 
   const fetchApplications = useCallback(() => {
-    if (fetchInFlightRef.current.has(queryKey)) {
-      return fetchInFlightRef.current.get(queryKey);
+    if (fetchInFlightRef.current.has(requestKey)) {
+      return fetchInFlightRef.current.get(requestKey);
     }
-    const isCurrent = () => mountedRef.current && currentQueryRef.current === queryKey;
+    const isCurrent = () => mountedRef.current && currentQueryRef.current === requestKey;
+    setIsRefreshing(true);
     const request = (async () => {
       try {
         const response = await authFetch(buildApiUrl(`/applications?${queryKey}`));
@@ -91,29 +95,29 @@ const MyApplications = () => {
         const data = await response.json();
         if (!isCurrent()) return;
         setApplications(data.items.map(app => ({ ...app, id: app.app_id_str })));
-        setMetadata({ total: data.total, active: data.has_active_applications });
+        const requested = new URLSearchParams(queryKey);
+        setMetadata({ total: data.total, active: data.has_active_applications, page: data.page,
+          sortBy: requested.get('sort_by'), direction: requested.get('sort_direction') });
         setQuery(current => current.page === data.page ? current : {...current, page: data.page});
         setError(null);
       } catch {
         if (isCurrent()) setError('errors.fetch');
       } finally {
-        if (isCurrent()) setIsLoading(false);
+        if (isCurrent()) { setIsLoading(false); setIsRefreshing(false); }
       }
     })();
-    fetchInFlightRef.current.set(queryKey, request);
+    fetchInFlightRef.current.set(requestKey, request);
     request.finally(() => {
-      if (fetchInFlightRef.current.get(queryKey) === request) {
-        fetchInFlightRef.current.delete(queryKey);
+      if (fetchInFlightRef.current.get(requestKey) === request) {
+        fetchInFlightRef.current.delete(requestKey);
       }
     });
     return request;
-  }, [queryKey]);
-  latestFetchRef.current = fetchApplications;
+  }, [queryKey, requestKey]);
 
-  const handleApplicationChange = useCallback(async () => {
-    // A detail update may finish after an older list request started.
-    await fetchInFlightRef.current.get(currentQueryRef.current);
-    if (mountedRef.current) return latestFetchRef.current();
+  const handleApplicationChange = useCallback(() => {
+    // Every request started before a detail update must become obsolete.
+    if (mountedRef.current) setRevision(value => value + 1);
   }, []);
   const changeSort = (field) => setQuery(current => ({page: 1, sortBy: field,
     direction: current.sortBy === field && current.direction === 'asc' ? 'desc' : 'asc'}));
@@ -162,12 +166,13 @@ const MyApplications = () => {
   }, [metadata.active, fetchApplications]);
 
   return (
-    <div className="applications-container">
+    <div className="applications-container" aria-busy={isRefreshing}>
       <h1 className="applications-header">{t('page.heading')}</h1>
       <CapabilityNotice capabilityIds={['view_applications']} />
       <p>{t('page.intro')}</p>
       <p className="applications-subtitle">{t('page.subtitle')}</p>
       <p className="applications-scroll-hint">{t('page.scrollHint')}</p>
+      {isRefreshing && !isLoading && <InlineLoading description={t('updating')} />}
       {isLoading ? (
         <div className="loading-container">
           <Loading description={t('loading')} withOverlay={false} />
@@ -191,8 +196,8 @@ const MyApplications = () => {
                 <TableRow>
                   {headers.map((header) => (
                     <TableHeader key={header.key} isSortable
-                      isSortHeader={query.sortBy === header.key}
-                      sortDirection={query.sortBy === header.key ? query.direction.toUpperCase() : 'NONE'}
+                      isSortHeader={metadata.sortBy === header.key}
+                      sortDirection={metadata.sortBy === header.key ? metadata.direction.toUpperCase() : 'NONE'}
                       onClick={() => changeSort(header.key)}
                       translateWithId={() => t('sorting.description', {
                         column: header.header,
@@ -248,7 +253,9 @@ const MyApplications = () => {
               onChange={({page}) => setQuery(current => ({...current, page}))}
               backwardText={t('pagination.previous')} forwardText={t('pagination.next')}
               itemsPerPageText={t('pagination.perPage')} pageNumberText={t('pagination.pageNumber')}
-              itemRangeText={(min, max, total) => t('pagination.range', {min, max, total})}
+              itemRangeText={() => t('pagination.range', {
+                min: Math.min((metadata.page - 1) * 50 + 1, metadata.total),
+                max: Math.min(metadata.page * 50, metadata.total), total: metadata.total})}
               pageRangeText={(_page, total) => t('pagination.pages', {total})}
               pageText={page => t('pagination.page', {page})} />
           </TableContainer>

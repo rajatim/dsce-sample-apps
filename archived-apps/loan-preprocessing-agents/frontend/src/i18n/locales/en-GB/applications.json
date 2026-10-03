@@ -48,5 +48,6 @@
     "range": "{{min}}–{{max}} of {{total}} items",
     "pages": "of {{total}} pages",
     "page": "Page {{page}}"
-  }
+  },
+  "updating": "Updating applications..."
 }
