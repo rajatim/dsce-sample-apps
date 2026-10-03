@@ -35,6 +35,22 @@ def candidate_groups(action, application, payload, current):
     return payload
 
 
+
+def build_discovery_session():
+    """Match Node hostname verification for the POC's trusted CN-only certificate."""
+    import ssl
+    import requests
+    class DiscoveryAdapter(requests.adapters.HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            context = ssl.create_default_context(cafile=os.environ.get('REQUESTS_CA_BUNDLE') or requests.certs.where())
+            context.hostname_checks_common_name = True
+            kwargs['ssl_context'] = context
+            return super().init_poolmanager(*args, **kwargs)
+    session = requests.Session()
+    session.mount('https://', DiscoveryAdapter())
+    return session
+
+
 def validate_providers(application, groups, allowed_hosts):
     """Authentication/metadata checks only: no inference, Agent execution or email."""
     values = {name:value for group in groups.values() for name,value in group.items()}
@@ -48,10 +64,10 @@ def validate_providers(application, groups, allowed_hosts):
         if any(result.status != StatusValue.READY for result in results):
             raise ConfigurationUnavailable()
         return
-    import requests
     if values.get('AUTH_PROVIDER') in ('ivia','ibmid'):
         prefix = 'IVIA' if values['AUTH_PROVIDER'] == 'ivia' else 'IBMID'
-        response = requests.get(values[f'{prefix}_WELL_KNOWN'],timeout=(3,5),allow_redirects=False)
+        with build_discovery_session() as session:
+            response = session.get(values[f'{prefix}_WELL_KNOWN'],timeout=(3,5),allow_redirects=False)
         if response.status_code != 200: raise ConfigurationUnavailable()
         document = response.json()
         from urllib.parse import urlsplit
