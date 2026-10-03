@@ -40,6 +40,17 @@ class Application(ApplicationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ApplicationPage(BaseModel):
+    items: list[Application]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    sort_by: str
+    sort_direction: str
+    has_active_applications: bool
+
+
 class ApplicationDetail(Application):
     processing_failure: Optional[ProcessingFailure] = None
 

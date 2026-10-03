@@ -1,9 +1,10 @@
 import React, { StrictMode } from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { authFetchMock } = vi.hoisted(() => ({
+const { authFetchMock, setPanelContentMock } = vi.hoisted(() => ({
   authFetchMock: vi.fn(),
+  setPanelContentMock: vi.fn(),
 }));
 
 vi.mock('../../services/api', () => ({
@@ -19,43 +20,13 @@ vi.mock('../../contexts/PanelContext', async () => {
   return {
     default: ReactModule.createContext({
       setIsPanelOpen: vi.fn(),
-      setPanelContent: vi.fn(),
+      setPanelContent: setPanelContentMock,
     }),
   };
 });
 
 vi.mock('react-markdown', () => ({
   default: ({ children }) => <div>{children}</div>,
-}));
-
-vi.mock('@carbon/react', () => ({
-  DataTable: ({ rows, headers, children }) =>
-    children({
-      rows: rows.map((row) => ({
-        id: row.id,
-        cells: headers.map((header) => ({
-          id: `${row.id}-${header.key}`,
-          info: { header: header.key },
-          value: row[header.key],
-        })),
-      })),
-      headers,
-      getTableProps: () => ({}),
-      getHeaderProps: ({ header }) => ({ key: header.key }),
-      getRowProps: ({ row }) => ({ key: row.id }),
-    }),
-  Table: (props) => <table {...props} />,
-  TableHead: (props) => <thead {...props} />,
-  TableRow: (props) => <tr {...props} />,
-  TableHeader: (props) => <th {...props} />,
-  TableBody: (props) => <tbody {...props} />,
-  TableCell: (props) => <td {...props} />,
-  TableContainer: (props) => <div {...props} />,
-  Loading: ({ description }) => <div role="status">{description}</div>,
-  InlineNotification: ({ title, subtitle }) => (
-    <div role="alert">{title}: {subtitle}</div>
-  ),
-  Tag: ({ type, children }) => <span data-tag-type={type}>{children}</span>,
 }));
 
 import MyApplications from './MyApplications';
@@ -74,7 +45,8 @@ const application = (status, overrides = {}) => ({
 
 const apiResponse = (data) => ({
   ok: true,
-  json: async () => data,
+  json: async () => ({items: data, total: data.length, page: 1, page_size: 50,
+    total_pages: 1, has_active_applications: data.some(r => ['processing', 'retrying', 'pending'].includes(r.status.toLowerCase()))}),
 });
 
 const flushRequests = async () => {
@@ -98,7 +70,7 @@ describe('MyApplications live statuses', () => {
     const notice = screen.getByTestId('capability-notice');
     expect(notice).toHaveAttribute('data-capability-ids', 'view_applications');
     expect(heading.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(notice.compareDocumentPosition(screen.getByRole('status')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.compareDocumentPosition(screen.getByText('Loading applications...')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('refreshes active applications and stops after they reach a final status', async () => {
@@ -194,12 +166,12 @@ describe('MyApplications live statuses', () => {
     render(<MyApplications />);
     await flushRequests();
 
-    expect(screen.getByText('Processing')).toHaveAttribute('data-tag-type', 'blue');
-    expect(screen.getByText('Retrying')).toHaveAttribute('data-tag-type', 'purple');
-    expect(screen.getByText('Passed')).toHaveAttribute('data-tag-type', 'green');
-    expect(screen.getByText('Rejected')).toHaveAttribute('data-tag-type', 'red');
-    expect(screen.getByText('Processing Failed')).toHaveAttribute('data-tag-type', 'red');
-    expect(screen.getByRole('columnheader', { name: 'Details' })).toBeVisible();
+    expect(screen.getByText('Processing').closest('.cds--tag')).toHaveClass('cds--tag--blue');
+    expect(screen.getByText('Retrying').closest('.cds--tag')).toHaveClass('cds--tag--purple');
+    expect(screen.getByText('Passed').closest('.cds--tag')).toHaveClass('cds--tag--green');
+    expect(screen.getByText('Rejected').closest('.cds--tag')).toHaveClass('cds--tag--red');
+    expect(screen.getByText('Processing Failed').closest('.cds--tag')).toHaveClass('cds--tag--red');
+    expect(screen.getByRole('columnheader', { name: /Details/ })).toBeVisible();
     expect(screen.getAllByText('View processing details')).toHaveLength(5);
     expect(
       screen.queryByText('A very long validation explanation that belongs in the side panel.')
@@ -219,10 +191,88 @@ describe('MyApplications live statuses', () => {
     await flushRequests();
 
     expect(screen.getByRole('heading', { name: '我的申請' })).toBeVisible();
-    expect(screen.getByRole('columnheader', { name: '申請編號' })).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: /申請編號/ })).toBeVisible();
     expect(screen.getByText('已通過')).toBeVisible();
+    expect(screen.getByRole('combobox', {name: '頁碼'})).toBeInTheDocument();
     expect(screen.getByText('Manual review required')).toBeVisible();
     expect(screen.getAllByText('查看處理詳細資料')).toHaveLength(2);
     expect(source).toEqual(before);
   });
+});
+
+
+describe('server table navigation', () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.resetAllMocks();
+    await i18n.changeLanguage('en-US');
+  });
+  const pageResponse = (page, active = false, id = `page-${page}`) => ({
+    ok: true, json: async () => ({items: [application('Passed', {app_id_str: id})],
+      total: 121, page, page_size: 50, total_pages: 3, has_active_applications: active}),
+  });
+  it('sends page and all seven sorting choices to the API without sorting locally', async () => {
+    authFetchMock.mockImplementation(async url => pageResponse(Number(new URL(url, 'http://local').searchParams.get('page'))));
+    render(<MyApplications />);
+    await flushRequests();
+    expect(authFetchMock.mock.calls[0][0]).toContain('sort_by=submitted_date&sort_direction=desc');
+    fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
+    await flushRequests();
+    expect(authFetchMock.mock.lastCall[0]).toContain('page=2&');
+    for (const [label, field] of [['Amount','amount'], ['Application ID','app_id_str'],
+      ['Applicant Name','applicant_name'], ['Loan Type','loan_type'], ['Status','status'],
+      ['Details','validation_comments'], ['Submitted Date','submitted_date']]) {
+      for (const direction of ['asc', 'desc']) {
+        fireEvent.click(screen.getByRole('button', {name: new RegExp(label)}));
+        await flushRequests();
+        expect(authFetchMock.mock.lastCall[0]).toContain(`page=1&page_size=50&sort_by=${field}&sort_direction=${direction}`);
+      }
+    }
+  });
+  it('polls activity on another page and preserves the selected page', async () => {
+    authFetchMock.mockImplementation(async url => pageResponse(Number(new URL(url, 'http://local').searchParams.get('page')), true));
+    render(<MyApplications />);
+    await flushRequests();
+    fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
+    await flushRequests();
+    await act(async () => {await vi.advanceTimersByTimeAsync(5000);});
+    expect(authFetchMock).toHaveBeenCalledTimes(3);
+    expect(authFetchMock.mock.lastCall[0]).toContain('page=2&');
+  });
+  it('ignores an old page response after a new sort', async () => {
+    let resolveOld;
+    authFetchMock.mockResolvedValueOnce(pageResponse(1))
+      .mockImplementationOnce(() => new Promise(resolve => {resolveOld = resolve;}))
+      .mockResolvedValueOnce(pageResponse(1, false, 'latest-sort'));
+    render(<MyApplications />);
+    await flushRequests();
+    fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
+    await flushRequests();
+    fireEvent.click(screen.getByRole('button', {name: /Amount/}));
+    await flushRequests();
+    await act(async () => {resolveOld(pageResponse(2, false, 'obsolete-page'));});
+    expect(screen.getByText('latest-sort')).toBeVisible();
+    expect(screen.queryByText('obsolete-page')).not.toBeInTheDocument();
+  });
+  it('refreshes the current page after a detail change, even during an older poll', async () => {
+    let resolvePoll;
+    authFetchMock.mockResolvedValueOnce(pageResponse(1, true))
+      .mockResolvedValueOnce(pageResponse(2, true))
+      .mockImplementationOnce(() => new Promise(resolve => {resolvePoll = resolve;}))
+      .mockResolvedValueOnce(pageResponse(2, false, 'after-retry'));
+    render(<MyApplications />);
+    await flushRequests();
+    fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
+    await flushRequests();
+    fireEvent.click(screen.getByText('page-2'));
+    const panel = setPanelContentMock.mock.lastCall[0];
+    await act(async () => {await vi.advanceTimersByTimeAsync(5000);});
+    let refresh;
+    act(() => {refresh = panel.props.onApplicationChange(application('Retrying'));});
+    await act(async () => {resolvePoll(pageResponse(2, true)); await refresh;});
+    expect(authFetchMock).toHaveBeenCalledTimes(4);
+    expect(authFetchMock.mock.lastCall[0]).toContain('page=2&');
+    expect(screen.getByText('after-retry')).toBeVisible();
+  });
+
 });

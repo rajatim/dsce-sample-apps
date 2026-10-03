@@ -11,7 +11,8 @@ import {
   TableContainer,
   Loading,
   InlineNotification,
-  Tag
+  Tag,
+  Pagination
 } from '@carbon/react';
 import './MyApplications.css';
 import { authFetch } from '../../services/api';
@@ -21,12 +22,7 @@ import LogViewer from '../LogViewer/LogViewer';
 import CapabilityNotice from '../CapabilityNotice/CapabilityNotice';
 import { formatDateTime, formatUsd } from '../../i18n/format';
 
-const ACTIVE_STATUSES = new Set(['pending', 'processing', 'retrying']);
-
 const normalizeStatus = (status) => status?.trim().toLowerCase() || '';
-
-const hasActiveApplications = (applications) =>
-  applications.some((application) => ACTIVE_STATUSES.has(normalizeStatus(application.status)));
 
 // A helper function to render status tags with colors
 const renderStatusTag = (status, t) => {
@@ -60,7 +56,15 @@ const renderStatusTag = (status, t) => {
 
 const MyApplications = () => {
   const { t, i18n } = useTranslation('applications');
-  const fetchInFlightRef = useRef(null);
+  const fetchInFlightRef = useRef(new Map());
+  const mountedRef = useRef(false);
+  const [query, setQuery] = useState({ page: 1, sortBy: 'submitted_date', direction: 'desc' });
+  const [metadata, setMetadata] = useState({ total: 0, active: false });
+  const queryKey = new URLSearchParams({page: query.page, page_size: 50,
+    sort_by: query.sortBy, sort_direction: query.direction}).toString();
+  const currentQueryRef = useRef(queryKey);
+  const latestFetchRef = useRef(null);
+  currentQueryRef.current = queryKey;
   const [applications, setApplications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,44 +79,44 @@ const MyApplications = () => {
     { key: 'submitted_date', header: t('headers.submittedDate') },
   ];
 
-  const handleApplicationChange = useCallback((updatedApplication) => {
-    setApplications((currentApplications) => currentApplications.map((application) => (
-      application.app_id_str === updatedApplication.app_id_str
-        ? { ...updatedApplication, id: updatedApplication.app_id_str }
-        : application
-    )));
-  }, []);
-
   const fetchApplications = useCallback(() => {
-    if (fetchInFlightRef.current) {
-      return fetchInFlightRef.current;
+    if (fetchInFlightRef.current.has(queryKey)) {
+      return fetchInFlightRef.current.get(queryKey);
     }
+    const isCurrent = () => mountedRef.current && currentQueryRef.current === queryKey;
     const request = (async () => {
       try {
-        const response = await authFetch(buildApiUrl('/list_applications'));
-        if (!response.ok) {
-          throw new Error('errors.fetch');
-        }
+        const response = await authFetch(buildApiUrl(`/applications?${queryKey}`));
+        if (!response.ok) throw new Error('errors.fetch');
         const data = await response.json();
-        setApplications(data.map(app => ({
-          ...app,
-          id: app.app_id_str,
-        })));
+        if (!isCurrent()) return;
+        setApplications(data.items.map(app => ({ ...app, id: app.app_id_str })));
+        setMetadata({ total: data.total, active: data.has_active_applications });
+        setQuery(current => current.page === data.page ? current : {...current, page: data.page});
         setError(null);
-      } catch (err) {
-        setError(err.message);
+      } catch {
+        if (isCurrent()) setError('errors.fetch');
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     })();
-    fetchInFlightRef.current = request;
+    fetchInFlightRef.current.set(queryKey, request);
     request.finally(() => {
-      if (fetchInFlightRef.current === request) {
-        fetchInFlightRef.current = null;
+      if (fetchInFlightRef.current.get(queryKey) === request) {
+        fetchInFlightRef.current.delete(queryKey);
       }
     });
     return request;
+  }, [queryKey]);
+  latestFetchRef.current = fetchApplications;
+
+  const handleApplicationChange = useCallback(async () => {
+    // A detail update may finish after an older list request started.
+    await fetchInFlightRef.current.get(currentQueryRef.current);
+    if (mountedRef.current) return latestFetchRef.current();
   }, []);
+  const changeSort = (field) => setQuery(current => ({page: 1, sortBy: field,
+    direction: current.sortBy === field && current.direction === 'asc' ? 'desc' : 'asc'}));
 
   const handleRowClick = (rowId) => {
       const application = applications.find(app => app.app_id_str === rowId);
@@ -128,11 +132,13 @@ const MyApplications = () => {
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchApplications();
+    return () => { mountedRef.current = false; };
   }, [fetchApplications]);
 
   useEffect(() => {
-    if (!hasActiveApplications(applications)) {
+    if (!metadata.active) {
       return undefined;
     }
 
@@ -153,7 +159,7 @@ const MyApplications = () => {
       cancelled = true;
       window.clearTimeout(pollingTimer);
     };
-  }, [applications, fetchApplications]);
+  }, [metadata.active, fetchApplications]);
 
   return (
     <div className="applications-container">
@@ -178,21 +184,24 @@ const MyApplications = () => {
           <p>{t('empty.description')}</p>
         </div>
       ) : <DataTable rows={applications} headers={headers}>
-        {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
+        {({ rows, headers, getTableProps, getRowProps }) => (
           <TableContainer>
             <Table {...getTableProps()}>
               <TableHead>
                 <TableRow>
-                  {headers.map((header) => {
-                    // Destructure the key and the rest of the props
-                    const { key, ...rest } = getHeaderProps({ header });
-                    return (
-                      // Apply the key directly, and spread the rest
-                      <TableHeader key={key} {...rest}>
-                        {header.header}
-                      </TableHeader>
-                    );
-                  })}
+                  {headers.map((header) => (
+                    <TableHeader key={header.key} isSortable
+                      isSortHeader={query.sortBy === header.key}
+                      sortDirection={query.sortBy === header.key ? query.direction.toUpperCase() : 'NONE'}
+                      onClick={() => changeSort(header.key)}
+                      translateWithId={() => t('sorting.description', {
+                        column: header.header,
+                        direction: t(query.sortBy === header.key && query.direction === 'asc'
+                          ? 'sorting.descending' : 'sorting.ascending'),
+                      }) + (header.key === 'validation_comments' ? ` ${t('sorting.details')}` : '')}>
+                      {header.header}
+                    </TableHeader>
+                  ))}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -230,6 +239,18 @@ const MyApplications = () => {
                 })}
               </TableBody>
             </Table>
+            <Pagination ref={node => {
+              // Carbon currently ignores pageNumberText for its page select.
+              const select = node?.querySelector('select[id$="-right"]');
+              if (select) select.setAttribute('aria-label', t('pagination.pageNumber'));
+            }} page={query.page} pageSize={50} pageSizes={[50]}
+              pageSizeInputDisabled totalItems={metadata.total}
+              onChange={({page}) => setQuery(current => ({...current, page}))}
+              backwardText={t('pagination.previous')} forwardText={t('pagination.next')}
+              itemsPerPageText={t('pagination.perPage')} pageNumberText={t('pagination.pageNumber')}
+              itemRangeText={(min, max, total) => t('pagination.range', {min, max, total})}
+              pageRangeText={(_page, total) => t('pagination.pages', {total})}
+              pageText={page => t('pagination.page', {page})} />
           </TableContainer>
         )}
       </DataTable>}

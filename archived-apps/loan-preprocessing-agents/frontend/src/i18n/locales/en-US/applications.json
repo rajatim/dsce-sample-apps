@@ -33,5 +33,20 @@
     "retrying": "Retrying",
     "rejected": "Rejected",
     "processingFailed": "Processing Failed"
+  },
+  "sorting": {
+    "description": "Sort {{column}} in {{direction}} order.",
+    "ascending": "ascending",
+    "descending": "descending",
+    "details": "Orders by the stored validation summary."
+  },
+  "pagination": {
+    "previous": "Previous page",
+    "next": "Next page",
+    "perPage": "Items per page:",
+    "pageNumber": "Page number",
+    "range": "{{min}}–{{max}} of {{total}} items",
+    "pages": "of {{total}} pages",
+    "page": "Page {{page}}"
   }
 }

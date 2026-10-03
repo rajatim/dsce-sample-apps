@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, status, File, Form, UploadFile, BackgroundTasks, Response
+from fastapi import Query, FastAPI, Depends, HTTPException, status, File, Form, UploadFile, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -28,6 +28,7 @@ from repositories.application_records import (
     record_document,
     start_processing_run,
 )
+from repositories.application_list import list_application_page, SortField, SortDirection
 from repositories.agent_events import list_events
 from repositories.status_activity import get_recent_agent_activity
 from services.status_checks import (
@@ -479,6 +480,18 @@ async def get_user_applications(
     apps = db.query(models.Application).filter(models.Application.owner_id == current_user.id).all()
     apps = [schemas.Application.model_validate(app) for app in apps]
     return apps
+
+
+@app.get("/applications", response_model=schemas.ApplicationPage)
+def get_application_page(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort_by: SortField = "submitted_date",
+    sort_direction: SortDirection = "desc",
+    current_user: schemas.User = Depends(security.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    return list_application_page(db, current_user.id, page, page_size, sort_by, sort_direction)
 
 
 @app.get("/applications/{app_id_str}", response_model=schemas.ApplicationDetail)
