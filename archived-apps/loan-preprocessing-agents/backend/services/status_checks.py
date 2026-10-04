@@ -3,7 +3,7 @@
 import json
 import logging
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
-from status_models import DependencyStatus, EvidenceKind, StatusValue
+from status_models import DependencyStatus, EvidenceKind, StatusValue, WxoAuthenticationStatus
 from services.status_errors import problem_for, problem_from_http, problem_from_exception
 
 
@@ -110,11 +110,13 @@ def _dependency(
     message: str,
     checked_at: datetime,
     problem=None,
+    authentication: WxoAuthenticationStatus | None = None,
 ) -> DependencyStatus:
     if status is StatusValue.NOT_CONFIGURED and problem is None:
         problem = problem_for(service=dependency_id, stage="configuration", code="missing_configuration")
     return DependencyStatus(
         problem=problem,
+        authentication=authentication,
         id=dependency_id,
         label=_LABELS[dependency_id],
         status=status,
@@ -374,7 +376,7 @@ def _wxo_agent_status(
 
 
 def _wxo_unavailable(
-    checked_at: datetime, agent_ids: list[str], problem
+    checked_at: datetime, agent_ids: list[str], problem, authentication: WxoAuthenticationStatus
 ) -> list[DependencyStatus]:
     return [
         _dependency(
@@ -382,7 +384,7 @@ def _wxo_unavailable(
             StatusValue.UNAVAILABLE,
             EvidenceKind.LIVE_CHECK,
             "watsonx Orchestrate is unavailable.",
-            checked_at, problem,
+            checked_at, problem, authentication=authentication,
         ),
         *[
             _dependency(
@@ -405,6 +407,7 @@ def check_wxo(
     environment: Mapping[str, str], http: Any, checked_at: datetime
 ) -> list[DependencyStatus]:
     """Read the registered-agent collection without creating threads or runs."""
+    authentication = WxoAuthenticationStatus()
     api_key = _value(environment, "WXO_API_KEY")
     service_url = _value(environment, "WXO_SERVICE_INSTANCE_URL")
     instance_id = _value(environment, "WXO_INSTANCE_ID")
@@ -417,6 +420,7 @@ def check_wxo(
                 EvidenceKind.NOT_VERIFIED,
                 "watsonx Orchestrate is not configured.",
                 checked_at,
+                authentication=authentication,
             ),
             *[
                 _dependency(
@@ -444,6 +448,9 @@ def check_wxo(
             service_url,
             _value(environment, "WXO_CPD_USERNAME"),
         )
+        authentication = WxoAuthenticationStatus(
+            token_status="succeeded", checked_at=datetime.now(timezone.utc),
+        )
         stage = "metadata"
         api_version = "v1" if instance_cloud == "cpd" else "v2"
         response = http.get(
@@ -455,7 +462,12 @@ def check_wxo(
         registered_ids = _registered_agent_ids(_json_response(response, "wxo", stage))
     except Exception as error:
         _warning(_LABELS["wxo"], error)
-        return _wxo_unavailable(checked_at, agent_ids, problem_from_exception(service="wxo", stage=stage, error=error))
+        problem = problem_from_exception(service="wxo", stage=stage, error=error)
+        if stage == "authentication" and problem.stage != "configuration":
+            authentication = WxoAuthenticationStatus(
+                token_status="failed", checked_at=datetime.now(timezone.utc),
+            )
+        return _wxo_unavailable(checked_at, agent_ids, problem, authentication)
 
     results = [
         _dependency(
@@ -464,6 +476,7 @@ def check_wxo(
             EvidenceKind.LIVE_CHECK,
             "watsonx Orchestrate is reachable.",
             checked_at,
+            authentication=authentication,
         )
     ]
     for (dependency_id, _), agent_id in zip(_WXO_AGENTS, agent_ids, strict=True):

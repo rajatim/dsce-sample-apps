@@ -199,5 +199,18 @@
       "agent_registration": "僅檢查身分驗證與註冊狀態；不執行 Agent 或模型。",
       "metadata": "僅檢查連線，不驗證完整貸款流程。"
     }
+  },
+  "authentication": {
+    "checkNow": "重新取得 Token 並檢查",
+    "checkNamed": "重新取得 Token 並檢查 {{service}}",
+    "results": {
+      "succeeded": "最近一次驗證：Token 取得成功",
+      "failed": "最近一次驗證：Token 取得失敗",
+      "not_checked": "尚未驗證 Token"
+    },
+    "checkedAt": "Token 驗證時間：{{time}}",
+    "expiryUnknown": "金鑰到期時間尚未確認，無法開放更換。",
+    "recovery": "401 不代表金鑰已過期。若金鑰遭拒絕，請管理者確認原因。",
+    "scope": "使用目前金鑰取得本次檢查所需的 Token，並確認 Agent 註冊狀態。實際處理申請時會另外取得 Token；此操作不會更換 API key。"
   }
 }

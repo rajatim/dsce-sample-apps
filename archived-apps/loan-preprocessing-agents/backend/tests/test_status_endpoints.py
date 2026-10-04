@@ -7,7 +7,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import main
-from services.status_checks import check_postgresql
+from services.status_checks import check_postgresql, check_wxo
+import test_status_checks as check_fixtures
 from services.system_status import SystemStatusService
 from status_models import SystemStatusResponse
 
@@ -183,6 +184,37 @@ class StatusEndpointTests(unittest.TestCase):
         validated = SystemStatusResponse.model_validate(response.json())
         self.assertEqual(validated.stale_after_seconds, 90)
         self.assertNotIn("WWW-Authenticate", response.headers)
+
+    def test_public_wxo_check_keeps_auth_evidence_during_cooldown_without_writes(self):
+        root = "https://wxo.example/instances/demo"
+        environment = check_fixtures.DependencyCheckTests._wxo_environment(WXO_SERVICE_INSTANCE_URL=root)
+        for success in (True, False):
+            with self.subTest(success=success):
+                http = (check_fixtures.DependencyCheckTests._wxo_http(root, check_fixtures.FakeResponse(503, {"message": "Unavailable"}))
+                        if success else check_fixtures.StrictHttp([check_fixtures.token_request(api_key="wxo-api-key", outcome=check_fixtures.FakeResponse(401, {"message": "Unauthorized"}))]))
+                service = SystemStatusService(dependency_checks={
+                    "wxo": lambda now: check_wxo(environment, http, now),
+                })
+                self.addCleanup(service.close)
+                from repositories.runtime_settings import SettingsRepository
+                with (patch.object(main, "system_status_service", service),
+                      patch.object(SettingsRepository, "stage", side_effect=AssertionError("No config writes")),
+                      patch.object(SettingsRepository, "activate_selection", side_effect=AssertionError("No config activation"))):
+                    first = self.client.get("/system-status?refresh=true&dependency=wxo")
+                    second = self.client.get("/system-status?refresh=true&dependency=wxo")
+                self.assertEqual(first.status_code, 200)
+                payload = first.json()
+                auth = next(row for row in payload["dependencies"] if row["id"] == "wxo").get("authentication")
+                self.assertIsNotNone(auth)
+                self.assertEqual(auth["token_status"], "succeeded" if success else "failed")
+                self.assertEqual(auth["api_key_expiry_status"], "unknown")
+                self.assertFalse(auth["key_management_available"])
+                reused = next(row for row in second.json()["dependencies"] if row["id"] == "wxo")["authentication"]
+                self.assertEqual(reused, auth)
+                self.assertEqual(second.json()["refresh"]["result"], "cooldown")
+                self.assertNotIn("private-token", first.text)
+                self.assertNotIn("wxo-api-key", first.text)
+                http.assert_exhausted()
 
     def test_system_status_never_serializes_supplied_private_values(self):
         private_values = (

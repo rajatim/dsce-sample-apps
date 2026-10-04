@@ -79,4 +79,38 @@ describe('fetchSystemStatus', () => {
     await fetchSystemStatus({ signal });
     expect(authFetchMock.mock.calls[0][1].signal).toBe(signal);
   });
+
+  const authentication = {
+    token_status: 'succeeded', checked_at: '2026-10-04T07:20:37Z',
+    api_key_expiry_status: 'unknown', api_key_expires_at: null,
+    key_management_available: false, key_management_reason: 'expiry_and_admin_access_unverified',
+  };
+  const wxoResponse = (auth) => jsonResponse({ ...validStatus, dependencies: [{
+    ...validStatus.dependencies[0], id: 'wxo', authentication: auth,
+  }] });
+
+  it.each(['succeeded', 'failed', 'not_checked'])('keeps the safe %s authentication result', async (token_status) => {
+    const auth = { ...authentication, token_status, checked_at: token_status === 'not_checked' ? null : authentication.checked_at };
+    authFetchMock.mockResolvedValue(wxoResponse(auth));
+    const result = await fetchSystemStatus({ refresh: true, dependency: 'wxo' });
+    expect(result.dependencies[0].authentication).toEqual(auth);
+    expect(authFetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8000/system-status?refresh=true&dependency=wxo');
+  });
+
+  it.each([
+    undefined, null, {}, 'invalid',
+    { ...authentication, token_status: 'expired' },
+    { ...authentication, checked_at: 'not-a-date' },
+    { ...authentication, checked_at: null },
+    { ...authentication, api_key_expiry_status: 'expired' },
+    { ...authentication, api_key_expires_at: '2026-10-04T07:20:00Z' },
+    { ...authentication, key_management_available: true },
+    { ...authentication, key_management_reason: 'unknown-policy' },
+    { ...authentication, token: 'never-forward-this' },
+  ])('keeps status usable with unsupported authentication metadata (%j)', async (auth) => {
+    authFetchMock.mockResolvedValue(wxoResponse(auth));
+    const result = await fetchSystemStatus();
+    expect(result.overall.status).toBe('ready');
+    expect(result.dependencies[0].authentication).toBeNull();
+  });
 });

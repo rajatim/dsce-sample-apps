@@ -90,7 +90,8 @@ describe('SystemStatus', () => {
     }));
     render(<SystemStatus />);
     fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
-    expect(screen.getAllByRole('button', { name: /^Check .+ now$/ })).toHaveLength(8);
+    expect(screen.getAllByRole('button', { name: /^Check .+ now$/ })).toHaveLength(7);
+    expect(screen.getByRole('button', { name: 'Get a new token and check watsonx Orchestrate' })).toBeVisible();
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Check PostgreSQL now' })));
     expect(checkDependency).toHaveBeenCalledWith('postgresql');
     const wxo = screen.getByRole('listitem', { name: /watsonx Orchestrate/ });
@@ -99,6 +100,54 @@ describe('SystemStatus', () => {
     expect(within(wxo).getByText('Authentication')).toBeVisible();
     expect(within(wxo).getByText(/Outdated/)).toBeVisible();
     expect(screen.queryByText('OpenLLMetry')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['succeeded', '最近一次驗證：Token 取得成功'],
+    ['failed', '最近一次驗證：Token 取得失敗'],
+    ['not_checked', '尚未驗證 Token'],
+    [undefined, '尚未驗證 Token'],
+  ])('separates the %s token result from metadata failure and prevents key actions', async (token_status, label) => {
+    await i18n.changeLanguage('zh-TW');
+    const checkDependency = vi.fn().mockResolvedValue({ refresh: { result: 'cooldown', retry_after_seconds: 15 } });
+    const auth = token_status ? {
+      token_status, checked_at: token_status === 'not_checked' ? null : '2026-10-04T07:20:37Z',
+      api_key_expiry_status: 'unknown', api_key_expires_at: null, key_management_available: false,
+      key_management_reason: 'expiry_and_admin_access_unverified',
+    } : undefined;
+    const value = contextValue({ status: { ...readyContract, dependencies: [{
+      id: 'wxo', status: 'unavailable', evidence: 'live_check', stale: true,
+      checked_at: '2026-10-04T07:20:35Z', authentication: auth,
+      problem: { code: 'http_error', stage: token_status === 'failed' ? 'authentication' : 'metadata',
+        http_status: token_status === 'failed' ? 401 : 503, provider_message: 'Provider test failure', action: 'review_configuration' },
+    }] }, checkDependency, isDependencyStale: () => true,
+    checkOutcome: () => ({ result: 'cooldown', retry_after_seconds: 15 }),
+    });
+    useSystemStatusMock.mockReturnValue(value);
+    const { rerender } = render(<SystemStatus />);
+    fireEvent.click(screen.getByRole('button', { name: '技術詳細資料' }));
+    const wxo = screen.getByRole('listitem', { name: /watsonx Orchestrate/ });
+    expect(within(wxo).getByText(label)).toBeVisible();
+    expect(within(wxo).getByText('Provider test failure')).toBeVisible();
+    expect(within(wxo).getByText('金鑰到期時間尚未確認，無法開放更換。')).toBeVisible();
+    expect(within(wxo).getByText(/401 不代表金鑰已過期/)).toBeVisible();
+    expect(within(wxo).getByText(/實際處理申請時會另外取得 Token/)).toBeVisible();
+    expect(within(wxo).getByText(/沿用上次結果/)).toBeVisible();
+    if (auth?.checked_at) expect(within(wxo).getByText(/Token 驗證時間：.*:37/)).toBeVisible();
+    const button = within(wxo).getByRole('button', { name: '重新取得 Token 並檢查 watsonx Orchestrate' });
+    await act(async () => fireEvent.click(button));
+    expect(checkDependency).toHaveBeenCalledWith('wxo');
+    value.isChecking = () => true;
+    rerender(<SystemStatus />);
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(checkDependency).toHaveBeenCalledTimes(1);
+    expect(within(wxo).queryByRole('button', { name: /更換|撤銷|revoke|rotate/i })).not.toBeInTheDocument();
+    if (auth) {
+      auth.key_management_available = true;
+      rerender(<SystemStatus />);
+      expect(within(wxo).getAllByRole('button')).toHaveLength(1);
+    }
   });
 
   it('refreshes lightweight status after five minutes while visible and online', async () => {

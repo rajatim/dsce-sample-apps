@@ -53,6 +53,15 @@ class RefreshResult(PublicStatusModel):
     retry_after_seconds: int = Field(default=0, ge=0)
 
 
+class WxoAuthenticationStatus(PublicStatusModel):
+    token_status: Literal["succeeded", "failed", "not_checked"] = "not_checked"
+    checked_at: datetime | None = None
+    api_key_expiry_status: Literal["unknown"] = "unknown"
+    api_key_expires_at: None = None
+    key_management_available: Literal[False] = False
+    key_management_reason: Literal["expiry_and_admin_access_unverified"] = "expiry_and_admin_access_unverified"
+
+
 class DependencyStatus(PublicStatusModel):
     id: str
     label: str
@@ -63,6 +72,7 @@ class DependencyStatus(PublicStatusModel):
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
     problem: StatusProblem | None = None
+    authentication: WxoAuthenticationStatus | None = None
     stale: bool = False
     age_seconds: float = Field(default=0, ge=0)
     check_kind: Literal["api_response", "database_query", "bucket_metadata", "deployment_metadata", "agent_registration"] | None = None

@@ -199,5 +199,18 @@
       "agent_registration": "Checks authentication and registration only. No Agent or model is executed.",
       "metadata": "Checks connectivity only; this does not verify a complete loan workflow."
     }
+  },
+  "authentication": {
+    "checkNow": "Get a new token and check",
+    "checkNamed": "Get a new token and check {{service}}",
+    "results": {
+      "succeeded": "Last verification: token obtained",
+      "failed": "Last verification: token could not be obtained",
+      "not_checked": "Token has not been verified"
+    },
+    "checkedAt": "Token verified at {{time}}",
+    "expiryUnknown": "API key expiry is not confirmed. Key replacement is unavailable.",
+    "recovery": "A 401 response does not prove the API key has expired. Ask an administrator to review a rejected key.",
+    "scope": "Uses the current API key to obtain a token for this check and verify Agent registration. Application processing obtains its own token. This does not replace the API key."
   }
 }

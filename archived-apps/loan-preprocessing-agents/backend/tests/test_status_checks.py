@@ -1,8 +1,10 @@
 import unittest
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
+
+import requests
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -459,6 +461,10 @@ class DependencyCheckTests(unittest.TestCase):
 
         self.assertTrue(all(item.status is StatusValue.READY for item in results))
         self.assertNotIn("private-cpd-token", "".join(x.model_dump_json() for x in results))
+        auth = results[0].model_dump().get("authentication")
+        self.assertIsNotNone(auth)
+        self.assertEqual(auth["token_status"], "succeeded")
+        self.assertFalse(auth["key_management_available"])
         http.assert_exhausted()
 
     def test_cpd_wxo_rejected_auth_does_not_query_agents_or_expose_body(self):
@@ -686,6 +692,63 @@ class DependencyCheckTests(unittest.TestCase):
                         f"status check failed ({exception_name})"
                     ],
                 )
+                http.assert_exhausted()
+
+    def test_wxo_keeps_authentication_success_when_registration_fails(self):
+        root = "https://wxo.example/instances/demo"
+        completed_at = CHECKED_AT + timedelta(seconds=2)
+        for outcome in (FakeResponse(200, {"agents": []}),
+                        FakeResponse(503, {"message": "Unavailable"}),
+                        FakeResponse(200, {"unexpected": []})):
+            with self.subTest(outcome=outcome.status_code):
+                http = self._wxo_http(root, outcome)
+                with patch.object(status_checks, "datetime") as clock:
+                    clock.now.return_value = completed_at
+                    results = check_wxo(self._wxo_environment(WXO_SERVICE_INSTANCE_URL=root), http, CHECKED_AT)
+                auth = results[0].model_dump().get("authentication")
+                self.assertIsNotNone(auth, "Expose authentication separately from registration")
+                self.assertEqual(auth["token_status"], "succeeded")
+                self.assertEqual(auth["checked_at"], completed_at)
+                self.assertEqual(auth["api_key_expiry_status"], "unknown")
+                self.assertIsNone(auth["api_key_expires_at"])
+                self.assertFalse(auth["key_management_available"])
+                self.assertTrue(all(item.model_dump().get("authentication") is None for item in results[1:]))
+                self.assertIs(results[1].status, StatusValue.UNAVAILABLE)
+                self.assertNotIn("private-token", results[0].model_dump_json())
+                http.assert_exhausted()
+
+    def test_wxo_auth_failures_never_establish_key_expiry_or_query_agents(self):
+        root = "https://wxo.example/instances/demo"
+        for outcome in (FakeResponse(401, {"message": "Unauthorized"}),
+                        FakeResponse(403, {"message": "Forbidden"}),
+                        FakeResponse(200, {}), requests.Timeout(), requests.exceptions.SSLError()):
+            with self.subTest(outcome=type(outcome).__name__):
+                http = StrictHttp([token_request(api_key="wxo-api-key", outcome=outcome)])
+                completed_at = CHECKED_AT + timedelta(seconds=3)
+                with patch.object(status_checks, "datetime") as clock:
+                    clock.now.return_value = completed_at
+                    result = check_wxo(self._wxo_environment(WXO_SERVICE_INSTANCE_URL=root), http, CHECKED_AT)[0]
+                auth = result.model_dump().get("authentication")
+                self.assertIsNotNone(auth, "Record rejected/failed token attempts")
+                self.assertEqual(auth["token_status"], "failed")
+                self.assertEqual(auth["checked_at"], completed_at)
+                self.assertEqual(auth["api_key_expiry_status"], "unknown")
+                self.assertIsNone(auth["api_key_expires_at"])
+                self.assertFalse(auth["key_management_available"])
+                self.assertIsNotNone(result.problem)
+                http.assert_exhausted()
+
+    def test_wxo_configuration_failure_does_not_claim_an_auth_attempt(self):
+        for environment in ({}, self._wxo_environment(
+                WXO_INSTANCE_CLOUD="cpd", WXO_SERVICE_INSTANCE_URL="https://cpd.example/instances/123")):
+            with self.subTest(environment=bool(environment)):
+                http = StrictHttp([])
+                result = check_wxo(environment, http, CHECKED_AT)[0]
+                auth = result.model_dump().get("authentication")
+                self.assertIsNotNone(auth)
+                self.assertEqual(auth["token_status"], "not_checked")
+                self.assertIsNone(auth["checked_at"])
+                self.assertFalse(auth["key_management_available"])
                 http.assert_exhausted()
 
     @staticmethod

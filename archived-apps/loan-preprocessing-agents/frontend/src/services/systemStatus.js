@@ -19,6 +19,18 @@ const validProblem = (p) => p == null || (isRecord(p)
 const validFreshness = (v) => (v.stale === undefined || typeof v.stale === 'boolean')
   && (v.age_seconds === undefined || (Number.isFinite(v.age_seconds) && v.age_seconds >= 0));
 
+const AUTHENTICATION_FIELDS = new Set(['token_status', 'checked_at', 'api_key_expiry_status',
+  'api_key_expires_at', 'key_management_available', 'key_management_reason']);
+const validAuthentication = (value) => isRecord(value)
+  && Object.keys(value).every((key) => AUTHENTICATION_FIELDS.has(key))
+  && ['succeeded', 'failed', 'not_checked'].includes(value.token_status)
+  && (value.token_status === 'not_checked'
+    ? value.checked_at === null
+    : typeof value.checked_at === 'string' && isOptionalDate(value.checked_at))
+  && value.api_key_expiry_status === 'unknown' && value.api_key_expires_at === null
+  && value.key_management_available === false
+  && value.key_management_reason === 'expiry_and_admin_access_unverified';
+
 const validDependency = (value) => isRecord(value)
   && typeof value.id === 'string'
   && typeof value.label === 'string'
@@ -63,7 +75,14 @@ export const fetchSystemStatus = async ({ refresh = false, dependency, signal } 
     if (!response?.ok) throw new Error(SAFE_ERROR);
     const payload = await response.json();
     if (!validPayload(payload)) throw new Error(SAFE_ERROR);
-    return payload;
+    return {
+      ...payload,
+      dependencies: payload.dependencies.map((dependency) => ({
+        ...dependency,
+        authentication: dependency.id === 'wxo' && validAuthentication(dependency.authentication)
+          ? dependency.authentication : null,
+      })),
+    };
   } catch (error) {
     if (error?.name === 'AbortError') throw error;
     throw new Error(SAFE_ERROR);

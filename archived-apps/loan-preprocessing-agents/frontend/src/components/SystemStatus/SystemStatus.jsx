@@ -149,6 +149,21 @@ const DependencyProblem = ({ problem }) => {
   );
 };
 
+const WxoAuthentication = ({ authentication }) => {
+  const { t, i18n } = useTranslation('status');
+  return (
+    <div className="system-status-dependency__note">
+      <p>{t(`authentication.results.${authentication?.token_status || 'not_checked'}`)}</p>
+      {authentication?.checked_at && <p>{t('authentication.checkedAt', {
+        time: formatDateTime(authentication.checked_at, i18n.resolvedLanguage, 'medium'),
+      })}</p>}
+      <p>{t('authentication.expiryUnknown')}</p>
+      <p className="system-status-check-note">{t('authentication.recovery')}</p>
+      <p className="system-status-check-note">{t('authentication.scope')}</p>
+    </div>
+  );
+};
+
 const overallPresentation = (overall, t) => {
   if (!overall) return null;
   if (!['ready', 'limited', 'unavailable'].includes(overall.status)) return overall;
@@ -354,10 +369,10 @@ const SystemStatus = () => {
                           <StatusMark status={dependency.status} />
                         </div>
                         <Button kind="tertiary" size="sm" className="system-status-row-check"
-                          aria-label={t('diagnostics.checkNamed', { service: dependency.label })}
+                          aria-label={t(dependency.id === 'wxo' ? 'authentication.checkNamed' : 'diagnostics.checkNamed', { service: dependency.label })}
                           disabled={isLoading || isChecking(dependency.id)}
                           onClick={() => handleDependencyCheck(dependency.id)}>
-                          {isChecking(dependency.id) ? t('diagnostics.checking') : t('diagnostics.checkNow')}
+                          {isChecking(dependency.id) ? t('diagnostics.checking') : t(dependency.id === 'wxo' ? 'authentication.checkNow' : 'diagnostics.checkNow')}
                         </Button>
                       </div>
                       <div className="system-status-dependency__details">
@@ -367,10 +382,11 @@ const SystemStatus = () => {
                         {(AGENT_DEPENDENCY_IDS.has(dependency.id) || dependency.id === 'wxo') && <p className="system-status-check-note">{t('diagnostics.wxoGroup')}</p>}
                         {checkError(dependency.id) && <p role="alert">{t('diagnostics.requestFailed')}</p>}
                         {checkOutcome(dependency.id)?.result === 'cooldown' && <p role="status">{t('diagnostics.cooldown', { count: checkOutcome(dependency.id).retry_after_seconds })}</p>}
+                        {dependency.id === 'wxo' && <WxoAuthentication authentication={dependency.authentication} />}
                         <DependencyProblem problem={dependency.problem} />
                         <p className="system-status-dependency__meta">
                           <span>{t(`evidence.${dependency.evidence}`, { defaultValue: t('evidence.unknown') })}</span>
-                          <span>{dependency.checked_at ? t('timing.checkedAt', { time: formatDateTime(dependency.checked_at, i18n.resolvedLanguage) }) : t('timing.noRecentCheck')}</span>
+                          <span>{dependency.checked_at ? t('timing.checkedAt', { time: formatDateTime(dependency.checked_at, i18n.resolvedLanguage, 'medium') }) : t('timing.noRecentCheck')}</span>
                         </p>
                         {AGENT_DEPENDENCY_IDS.has(dependency.id) && (
                           <div className="system-status-dependency__note">

@@ -28,7 +28,7 @@
       "id": "generate_decision",
       "label": "Generate a loan decision",
       "status": "ready",
-      "message": "Agent processing is available. Results may take 2\u20134 minutes.",
+      "message": "Agent processing is available. Results may take 2–4 minutes.",
       "stale": false,
       "age_seconds": 0
     },
@@ -41,5 +41,26 @@
       "age_seconds": 0
     }
   ],
-  "dependencies": []
+  "dependencies": [
+    {
+      "id": "wxo",
+      "label": "watsonx Orchestrate",
+      "status": "ready",
+      "evidence": "live_check",
+      "message": "watsonx Orchestrate is reachable.",
+      "checked_at": "2026-09-04T10:20:29Z",
+      "last_success_at": null,
+      "last_failure_at": null,
+      "stale": false,
+      "age_seconds": 1,
+      "authentication": {
+        "token_status": "succeeded",
+        "checked_at": "2026-09-04T10:20:30Z",
+        "api_key_expiry_status": "unknown",
+        "api_key_expires_at": null,
+        "key_management_available": false,
+        "key_management_reason": "expiry_and_admin_access_unverified"
+      }
+    }
+  ]
 }
