@@ -3,7 +3,7 @@
     "heading": "我的申請",
     "intro": "以下是您已送出的貸款申請。",
     "subtitle": "將游標移到資料列並點選，即可查看 Agent 執行的詳細步驟。",
-    "scrollHint": "左右滑動即可查看狀態、詳細資料與送出日期。"
+    "scrollHint": "左右滑動即可查看狀態、詳細資料與送出時間。"
   },
   "loading": "正在載入申請...",
   "errors": {
@@ -22,7 +22,8 @@
     "amount": "金額",
     "status": "狀態",
     "details": "詳細資料",
-    "submittedDate": "送出日期"
+    "submittedDate": "送出日期",
+    "submittedTime": "送出時間"
   },
   "viewDetails": "查看處理詳細資料",
   "statuses": {

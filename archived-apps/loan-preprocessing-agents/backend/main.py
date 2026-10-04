@@ -486,7 +486,7 @@ async def get_user_applications(
 def get_application_page(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    sort_by: SortField = "submitted_date",
+    sort_by: SortField = "created_at",
     sort_direction: SortDirection = "desc",
     current_user: schemas.User = Depends(security.get_current_user),
     db: Session = Depends(database.get_db),

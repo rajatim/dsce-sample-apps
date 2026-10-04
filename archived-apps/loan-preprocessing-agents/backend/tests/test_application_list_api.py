@@ -1,5 +1,5 @@
 """Owner isolation, global sorting, page boundaries and query validation."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 import unittest
@@ -22,7 +22,8 @@ class ApplicationListApiTests(unittest.TestCase):
                     loan_type=['Home', 'auto'][n % 2], amount=Decimal(n*13 % 127),
                     status='processing' if n == 1 else 'Passed',
                     submitted_date=date(2026, 1, 1)+timedelta(days=n % 15),
-                    validation_comments=[None, '', '  ', 'Alpha', 'beta'][n % 5]))
+                    validation_comments=[None, '', '  ', 'Alpha', 'beta'][n % 5],
+                    created_at=datetime(2026, 10, 2, 7, 0, tzinfo=timezone.utc)+timedelta(seconds=n*17 % 127)))
             session.commit()
 
     def collection(self, **params):
@@ -44,7 +45,7 @@ class ApplicationListApiTests(unittest.TestCase):
         with self.session_factory() as session:
             records = list(session.query(models.Application).filter_by(owner_id=1))
             for field in ['app_id_str', 'applicant_name', 'loan_type', 'amount', 'status',
-                          'validation_comments', 'submitted_date']:
+                          'validation_comments', 'submitted_date', 'created_at']:
                 for direction in ['asc', 'desc']:
                     with self.subTest(field=field, direction=direction):
                         def value(row):
@@ -81,3 +82,15 @@ class ApplicationListApiTests(unittest.TestCase):
         response = self.client.get('/list_applications')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 121)
+
+    def test_actual_time_is_timezone_aware_and_default_order_uses_time(self):
+        data = self.collection(page_size=100)
+        self.assertEqual(data['sort_by'], 'created_at')
+        times = [datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')) for row in data['items']]
+        self.assertTrue(all(value.utcoffset() == timedelta(0) for value in times))
+        self.assertEqual(times, sorted(times, reverse=True))
+        self.assertGreater(len(set(times)), 1)
+        with self.session_factory() as session:
+            expected = session.query(models.Application).filter_by(owner_id=1).order_by(models.Application.created_at.desc(), models.Application.id.desc()).first()
+            self.assertEqual(data['items'][0]['id'], expected.id)
+            self.assertEqual(times[0].replace(tzinfo=None), expected.created_at)

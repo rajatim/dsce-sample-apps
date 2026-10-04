@@ -3,7 +3,7 @@
     "heading": "我的申请",
     "intro": "以下是您已提交的贷款申请。",
     "subtitle": "将光标移到数据行并点击，即可查看 Agent 执行的详细步骤。",
-    "scrollHint": "左右滑动即可查看状态、详细信息与提交日期。"
+    "scrollHint": "左右滑动即可查看状态、详细信息与提交时间。"
   },
   "loading": "正在加载申请...",
   "errors": {
@@ -22,7 +22,8 @@
     "amount": "金额",
     "status": "状态",
     "details": "详细信息",
-    "submittedDate": "提交日期"
+    "submittedDate": "提交日期",
+    "submittedTime": "提交时间"
   },
   "viewDetails": "查看处理详细信息",
   "statuses": {

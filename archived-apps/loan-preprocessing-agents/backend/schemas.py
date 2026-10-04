@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -40,8 +40,20 @@ class Application(ApplicationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ApplicationListItem(Application):
+    created_at: datetime
+
+    @field_validator('created_at', mode='after')
+    @classmethod
+    def normalize_created_at(cls, value: datetime) -> datetime:
+        # SQLite drops timezone metadata; application timestamps are stored in UTC.
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
 class ApplicationPage(BaseModel):
-    items: list[Application]
+    items: list[ApplicationListItem]
     total: int
     page: int
     page_size: int

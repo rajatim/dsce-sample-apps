@@ -3,7 +3,7 @@
     "heading": "My Applications",
     "intro": "Here is a list of your submitted loan applications.",
     "subtitle": "You can hover on a row and click to see the detailed steps followed by agents.",
-    "scrollHint": "Swipe sideways to view status, details, and submitted date."
+    "scrollHint": "Swipe sideways to view status, details, and submitted time."
   },
   "loading": "Loading applications...",
   "errors": {
@@ -22,7 +22,8 @@
     "amount": "Amount",
     "status": "Status",
     "details": "Details",
-    "submittedDate": "Submitted Date"
+    "submittedDate": "Submitted Date",
+    "submittedTime": "Submitted Time"
   },
   "viewDetails": "View processing details",
   "statuses": {

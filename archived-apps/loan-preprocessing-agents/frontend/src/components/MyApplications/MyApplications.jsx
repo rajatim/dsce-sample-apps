@@ -59,8 +59,8 @@ const MyApplications = () => {
   const { t, i18n } = useTranslation('applications');
   const fetchInFlightRef = useRef(new Map());
   const mountedRef = useRef(false);
-  const [query, setQuery] = useState({ page: 1, sortBy: 'submitted_date', direction: 'desc' });
-  const [metadata, setMetadata] = useState({ total: 0, active: false, page: 1, sortBy: 'submitted_date', direction: 'desc' });
+  const [query, setQuery] = useState({ page: 1, sortBy: 'created_at', direction: 'desc' });
+  const [metadata, setMetadata] = useState({ total: 0, active: false, page: 1, sortBy: 'created_at', direction: 'desc' });
   const [revision, setRevision] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryKey = new URLSearchParams({page: query.page, page_size: 50,
@@ -79,7 +79,7 @@ const MyApplications = () => {
     { key: 'amount', header: t('headers.amount') },
     { key: 'status', header: t('headers.status') },
     { key: 'validation_comments', header: t('headers.details') },
-    { key: 'submitted_date', header: t('headers.submittedDate') },
+    { key: 'created_at', header: t('headers.submittedTime') },
   ];
 
   const fetchApplications = useCallback(() => {
@@ -234,8 +234,8 @@ const MyApplications = () => {
                             ?<span style={{color: 'blue', textDecoration: 'underline'}}>{cell.value}</span>
                             : cell.info.header === 'amount'
                               ? formatUsd(cell.value, i18n.resolvedLanguage)
-                              : cell.info.header === 'submitted_date'
-                                ? formatDateTime(cell.value, i18n.resolvedLanguage)
+                              : cell.info.header === 'created_at'
+                                ? formatDateTime(cell.value, i18n.resolvedLanguage, 'medium')
                                 : cell.value}
                       </TableCell>
                       ))}

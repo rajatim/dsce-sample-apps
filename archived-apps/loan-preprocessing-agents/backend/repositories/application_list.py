@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, aliased
 from models import Application
 
 SortField = Literal['app_id_str', 'applicant_name', 'loan_type', 'amount',
-                    'status', 'validation_comments', 'submitted_date']
+                    'status', 'validation_comments', 'submitted_date', 'created_at']
 SortDirection = Literal['asc', 'desc']
 
 
@@ -15,7 +15,7 @@ def list_application_page(db: Session, owner_id: int, page: int, page_size: int,
                           sort_by: SortField, sort_direction: SortDirection):
     columns = {name: getattr(Application, name) for name in SortField.__args__}
     value = columns[sort_by]
-    if sort_by not in ('amount', 'submitted_date'):
+    if sort_by not in ('amount', 'submitted_date', 'created_at'):
         value = func.nullif(func.lower(func.trim(value)), '')
     order = value.asc() if sort_direction == 'asc' else value.desc()
     owned = select(

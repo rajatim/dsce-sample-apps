@@ -2,10 +2,10 @@ import { DEFAULT_LOCALE, normalizeSupportedLocale } from './locales';
 
 const safeLocale = (locale) => normalizeSupportedLocale(locale) ?? DEFAULT_LOCALE;
 
-export const formatDateTime = (value, locale) =>
+export const formatDateTime = (value, locale, timeStyle = 'short') =>
   new Intl.DateTimeFormat(safeLocale(locale), {
     dateStyle: 'medium',
-    timeStyle: 'short',
+    timeStyle,
   }).format(new Date(value));
 
 export const formatNumber = (value, locale) =>

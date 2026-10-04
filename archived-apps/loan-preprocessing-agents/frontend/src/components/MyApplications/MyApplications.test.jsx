@@ -40,6 +40,7 @@ const application = (status, overrides = {}) => ({
   status,
   validation_comments: '',
   submitted_date: '2026-09-01',
+  created_at: '2026-09-01T07:49:42Z',
   ...overrides,
 });
 
@@ -92,6 +93,19 @@ describe('MyApplications live statuses', () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
     expect(authFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('displays distinct stored timestamps including seconds for the same date', async () => {
+    authFetchMock.mockResolvedValue(apiResponse([
+      application('Passed', {app_id_str: 'first', created_at: '2026-10-02T07:49:42Z'}),
+      application('Passed', {app_id_str: 'second', created_at: '2026-10-02T07:51:38Z'}),
+    ]));
+    render(<MyApplications />);
+    await flushRequests();
+    for (const value of ['2026-10-02T07:49:42Z', '2026-10-02T07:51:38Z']) {
+      const expected = new Intl.DateTimeFormat('en-US', {dateStyle: 'medium', timeStyle: 'medium'}).format(new Date(value));
+      expect(screen.getByText(expected)).toBeVisible();
+    }
   });
 
   it('does not poll applications that are already complete', async () => {
@@ -215,13 +229,13 @@ describe('server table navigation', () => {
     authFetchMock.mockImplementation(async url => pageResponse(Number(new URL(url, 'http://local').searchParams.get('page'))));
     render(<MyApplications />);
     await flushRequests();
-    expect(authFetchMock.mock.calls[0][0]).toContain('sort_by=submitted_date&sort_direction=desc');
+    expect(authFetchMock.mock.calls[0][0]).toContain('sort_by=created_at&sort_direction=desc');
     fireEvent.click(screen.getByRole('button', {name: 'Next page'}));
     await flushRequests();
     expect(authFetchMock.mock.lastCall[0]).toContain('page=2&');
     for (const [label, field] of [['Amount','amount'], ['Application ID','app_id_str'],
       ['Applicant Name','applicant_name'], ['Loan Type','loan_type'], ['Status','status'],
-      ['Details','validation_comments'], ['Submitted Date','submitted_date']]) {
+      ['Details','validation_comments'], ['Submitted Time','created_at']]) {
       for (const direction of ['asc', 'desc']) {
         fireEvent.click(screen.getByRole('button', {name: new RegExp(label)}));
         await flushRequests();
